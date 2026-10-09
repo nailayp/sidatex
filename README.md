@@ -1,58 +1,145 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# SIDATEX
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+### Sistem Informasi Data Ekspor-Impor — BPS Provinsi Riau
 
-## About Laravel
+SIDATEX merupakan aplikasi berbasis web yang dirancang untuk mendukung pengelolaan, pengolahan, visualisasi, dan analisis data ekspor-impor. Project ini dikembangkan sebagai bagian dari kegiatan Kerja Praktik (KP).
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Teknologi
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+* **Framework:** Laravel 13
+* **Bahasa pemrograman:** PHP 8.4
+* **Database:** MySQL
+* **Frontend assets:** Vite, NPM
+* **Code editor:** Visual Studio Code
+* **Local development environment:** Laragon
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Persyaratan
 
-## Learning Laravel
+Pastikan perangkat sudah memiliki:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+* PHP 8.4 atau versi kompatibel dengan Laravel 13
+* Composer
+* MySQL
+* Node.js dan NPM
+* Git
+* Visual Studio Code (disarankan)
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Instalasi
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+### 1. Clone repository
 
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Buka terminal Laragon, kemudian jalankan:
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+cd D:\laragon\www
+git clone https://github.com/nailayp/sidatex.git
+cd sidatex
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### 2. Install dependency
 
-## Contributing
+```bash
+composer install
+npm install
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### 3. Konfigurasi environment
 
-## Code of Conduct
+Salin file konfigurasi contoh:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+copy .env.example .env
+```
 
-## Security Vulnerabilities
+Buat application key:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+php artisan key:generate
+```
 
-## License
+### 4. Buat database
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Buat database MySQL dengan nama `sidatex` melalui Laragon atau phpMyAdmin.
+
+### 5. Atur koneksi database
+
+Buka file `.env` dan sesuaikan konfigurasi berikut dengan MySQL lokal:
+
+```dotenv
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=sidatex
+DB_USERNAME=root
+DB_PASSWORD=
+```
+
+Jika MySQL menggunakan password, sesuaikan nilai `DB_PASSWORD`.
+
+### 6. Jalankan migration
+
+```bash
+php artisan migrate
+```
+
+Migration yang tersedia akan membuat tabel yang sudah didefinisikan di project. Tabel khusus SIDATEX akan ditambahkan selama proses pengembangan.
+
+### 7. Jalankan aplikasi
+
+Untuk menjalankan Laravel:
+
+```bash
+php artisan serve
+```
+
+Untuk menyiapkan aset frontend:
+
+```bash
+npm run build
+```
+
+Buka alamat yang ditampilkan di terminal, biasanya:
+
+http://127.0.0.1:8000
+
+## Gambaran Pengembangan
+
+Fitur yang direncanakan untuk SIDATEX meliputi:
+
+* Login lokal sebagai tahap awal, dengan rencana integrasi SSO BPS.
+* Pengelolaan pengguna dan hak akses.
+* Upload serta pemilihan data Excel sebelum diproses.
+* Preview dan validasi data.
+* Pengelolaan status data: DRAFT, NON-RILIS, dan RILIS.
+* Dashboard dan visualisasi data ekspor-impor.
+* Analisis, perbandingan periode, dan neraca perdagangan.
+* Pengelolaan master data.
+* Log aktivitas, komentar, serta pemulihan data.
+* Unduh hasil dan pembuatan presentasi PowerPoint.
+
+Fitur-fitur tersebut merupakan rencana pengembangan, bukan seluruhnya sudah tersedia pada versi awal repository.
+
+## Aturan Kerja Tim
+
+1. Gunakan repository GitHub yang sama sebagai sumber kode utama.
+2. Jangan mengerjakan fitur berbeda langsung pada branch `main`.
+3. Buat branch untuk setiap fitur, misalnya:
+
+```bash
+git checkout -b feature/login
+```
+
+4. Setelah fitur selesai, lakukan commit dan push ke branch masing-masing.
+5. Ajukan Pull Request untuk menggabungkan perubahan ke `main`.
+6. Jangan mengunggah file `.env`, password, token, atau data internal yang bersifat rahasia.
+7. Jangan mengunggah folder `vendor` dan `node_modules`.
+8. Setiap anggota menggunakan `.env` dan database lokal masing-masing.
+
+## Repository
+
+GitHub: https://github.com/nailayp/sidatex
+
+---
+
+**SIDATEX — Sistem Informasi Data Ekspor-Impor**
+Project Kerja Praktik, BPS Provinsi Riau.
