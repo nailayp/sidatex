@@ -1,7 +1,7 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -28,6 +28,27 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', function () {
         return view('dashboard');
     })->name('dashboard');
+
+    // Halaman awal tiap modul memakai satu view informatif sampai fiturnya siap.
+    Route::view('/upload-data', 'pages.module-placeholder', [
+        'pageTitle' => 'Upload Data',
+        'pageDescription' => 'Unggah dan validasi data ekspor-impor SIDATEX.',
+    ])->name('upload-data');
+
+    Route::view('/filtering-data', 'pages.module-placeholder', [
+        'pageTitle' => 'Filtering Data',
+        'pageDescription' => 'Telusuri data berdasarkan komoditas dan periode.',
+    ])->name('filtering-data');
+
+    Route::view('/manajemen-data', 'pages.module-placeholder', [
+        'pageTitle' => 'Manajemen Data',
+        'pageDescription' => 'Kelola data ekspor-impor dan status publikasinya.',
+    ])->name('manajemen-data');
+
+    Route::view('/analisis-perdagangan', 'pages.module-placeholder', [
+        'pageTitle' => 'Analisis Perdagangan',
+        'pageDescription' => 'Analisis ringkasan perdagangan ekspor-impor Provinsi Riau.',
+    ])->name('analisis-perdagangan');
 
     // Mengakhiri sesi login.
     Route::post('/logout', [LoginController::class, 'logout'])
