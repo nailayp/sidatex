@@ -10,6 +10,12 @@ use Illuminate\Support\Facades\Route;
 | Halaman ini dapat diakses tanpa login.
 */
 
+Route::get('/', function () {
+    return auth()->check()
+        ? redirect()->route('dashboard')
+        : redirect()->route('login');
+})->name('home');
+
 Route::get('/login', [LoginController::class, 'showLoginForm'])
     ->name('login');
 
