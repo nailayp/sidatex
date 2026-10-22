@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\DashboardController; // Pastikan Controller ini di-import
+use App\Http\Controllers\UploadController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -30,33 +32,44 @@ Route::post('/login', [LoginController::class, 'login'])
 */
 
 Route::middleware('auth')->group(function () {
-    // Halaman utama setelah pengguna berhasil login.
-    Route::get('/dashboard', function () {
-        return view('dashboard');
-    })->name('dashboard');
 
-    // Halaman awal tiap modul memakai satu view informatif sampai fiturnya siap.
-    Route::view('/upload-data', 'pages.module-placeholder', [
-        'pageTitle' => 'Upload Data',
-        'pageDescription' => 'Unggah dan validasi data ekspor-impor SIDATEX.',
-    ])->name('upload-data');
+    // --- DASHBOARD UTAMA ---
+    // Halaman utama setelah login (Ditangani oleh Controller)
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+    // --- MODUL UPLOAD DATA ---
+    // Menampilkan halaman form upload
+    Route::get('/upload-data', [UploadController::class, 'index'])->name('upload-data');
+    // Rute untuk memproses file yang di-submit
+    Route::post('/upload-data/process', [UploadController::class, 'store'])->name('upload.process');
+
+    // Rute tambahan sesuai role di LoginController
+    Route::get('/dashboard/data', [UploadController::class, 'index'])->name('dashboard.data');
+
+    Route::get('/dashboard/visual', function () {
+        return view('dashboard.visual');
+    })->name('dashboard.visual');
+
+    // --- MODUL DALAM PENGEMBANGAN (Placeholder) ---
     Route::view('/filtering-data', 'pages.module-placeholder', [
         'pageTitle' => 'Filtering Data',
         'pageDescription' => 'Telusuri data berdasarkan komoditas dan periode.',
     ])->name('filtering-data');
 
-    Route::view('/manajemen-data', 'pages.module-placeholder', [
-        'pageTitle' => 'Manajemen Data',
-        'pageDescription' => 'Kelola data ekspor-impor dan status publikasinya.',
-    ])->name('manajemen-data');
+    Route::get('/manajemen-data', [\App\Http\Controllers\UploadController::class, 'manajemen'])->name('manajemen-data');
 
     Route::view('/analisis-perdagangan', 'pages.module-placeholder', [
         'pageTitle' => 'Analisis Perdagangan',
         'pageDescription' => 'Analisis ringkasan perdagangan ekspor-impor Provinsi Riau.',
     ])->name('analisis-perdagangan');
 
+
+
+    Route::get('/dashboard/master', [UploadController::class, 'index'])->name('dashboard.master');
+
+    Route::get('/dashboard/default', [DashboardController::class, 'index'])->name('dashboard.default');
+
+    // --- AUTENTIKASI ---
     // Mengakhiri sesi login.
-    Route::post('/logout', [LoginController::class, 'logout'])
-        ->name('logout');
+    Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 });

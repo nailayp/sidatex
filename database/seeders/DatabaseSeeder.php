@@ -7,16 +7,15 @@ use Illuminate\Database\Seeder;
 class DatabaseSeeder extends Seeder
 {
     /**
-     * Menjalankan seeder utama SIDATEX.
-     * Seeder ini menyiapkan data awal yang dibutuhkan sistem.
+     * Seed the application's database.
      */
-
     public function run(): void
     {
-        // Pastikan role tersedia sebelum akun dibuat.
         $this->call([
             RoleSeeder::class,
             SuperAdminSeeder::class,
+            // Tambahkan baris ini di bawahnya:
+            MasterDataSeeder::class,
         ]);
     }
 }

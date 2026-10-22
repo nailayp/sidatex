@@ -50,8 +50,20 @@ class LoginController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        // Arahkan pengguna ke dashboard setelah berhasil login.
-        return redirect()->route('dashboard');
+        // =========================================================
+        // LOGIKA PENGECEKAN ROLE UNTUK REDIRECT DASHBOARD
+        // =========================================================
+        // Asumsi: Anda memiliki kolom 'role_id' di tabel users.
+        // Jika namanya berbeda (misal 'role' atau 'id_role'), silakan sesuaikan.
+
+        // Arahkan semua role yang berhasil login langsung ke rute dashboard utama atau upload-data
+        if ($user->role_id == 1 || $user->role_id == 3) {
+            // Untuk Admin / Super Admin, langsung arahkan ke modul Upload Data atau Dashboard
+            return redirect()->route('upload-data');
+        } else {
+            // Untuk role lainnya (misal Pimpinan)
+            return redirect()->route('dashboard');
+        }
     }
 
     /**

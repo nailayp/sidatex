@@ -1,4 +1,3 @@
-
 <?php
 
 use Illuminate\Database\Migrations\Migration;
@@ -17,6 +16,9 @@ return new class extends Migration
 
             $table->string('nama_file');
             $table->string('jenis_data', 20); // Ekspor atau Impor.
+
+            // Menambahkan kolom ukuran file dalam satuan MB
+            $table->decimal('ukuran_file', 8, 2)->nullable();
 
             // Status menentukan apakah data boleh ditampilkan kepada pengguna.
             $table->enum('status', [
