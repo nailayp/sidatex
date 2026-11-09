@@ -18,6 +18,7 @@ class DataBatch extends Model
     protected $fillable = [
         'nama_file',
         'jenis_data',
+        'ukuran_file',
         'status',
         'uploaded_by',
         'uploaded_at',

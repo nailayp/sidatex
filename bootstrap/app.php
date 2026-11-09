@@ -18,4 +18,21 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        $exceptions->render(function (\Illuminate\Http\Exceptions\PostTooLargeException $e, Request $request) {
+            $maxUpload = ini_get('upload_max_filesize') ?: '50M';
+            $maxPost = ini_get('post_max_size') ?: '50M';
+            $pesan = "Ukuran payload file yang diunggah melebihi batas server PHP (post_max_size: {$maxPost}, upload_max_filesize: {$maxUpload}). Pastikan ukuran file Excel di bawah 50 MB.";
+
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $pesan,
+                ], 413);
+            }
+
+            return redirect()->back()
+                ->withInput()
+                ->with('error', $pesan);
+        });
     })->create();

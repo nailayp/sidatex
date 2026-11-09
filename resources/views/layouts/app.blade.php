@@ -62,24 +62,27 @@
                 <a href="{{ route('upload-data') }}" class="nav-item {{ request()->routeIs('upload-data') ? 'is-active' : '' }}" @if(request()->routeIs('upload-data')) aria-current="page" @endif>
                     <span class="nav-icon" aria-hidden="true">⇧</span>
                     <span class="nav-label">Upload Data</span>
-                    <span class="nav-status">Pengembangan</span>
                 </a>
                 <a href="{{ route('filtering-data') }}" class="nav-item {{ request()->routeIs('filtering-data') ? 'is-active' : '' }}" @if(request()->routeIs('filtering-data')) aria-current="page" @endif>
                     <span class="nav-icon" aria-hidden="true">▤</span>
                     <span class="nav-label">Filtering Data</span>
-                    <span class="nav-status">Pengembangan</span>
                 </a>
                 <a href="{{ route('manajemen-data') }}" class="nav-item {{ request()->routeIs('manajemen-data') ? 'is-active' : '' }}" @if(request()->routeIs('manajemen-data')) aria-current="page" @endif>
                     <span class="nav-icon" aria-hidden="true">▥</span>
                     <span class="nav-label">Manajemen Data</span>
-                    <span class="nav-status">Pengembangan</span>
+                </a>
+                <a href="{{ route('trash-data') }}" class="nav-item {{ request()->routeIs('trash-data') ? 'is-active' : '' }}" @if(request()->routeIs('trash-data')) aria-current="page" @endif>
+                    <span class="nav-icon" aria-hidden="true">🗑</span>
+                    <span class="nav-label">Trash Dokumen</span>
+                    @if(isset($sidebarTotalTrash) && $sidebarTotalTrash > 0)
+                        <span class="sidebar-badge-count">{{ $sidebarTotalTrash }}</span>
+                    @endif
                 </a>
 
-                <div class="sidebar-section-label sidebar-section-spaced">Analisis</div>
+                <div class="sidebar-section-label sidebar-section-spaced">Analisis & Pelaporan</div>
                 <a href="{{ route('analisis-perdagangan') }}" class="nav-item {{ request()->routeIs('analisis-perdagangan') ? 'is-active' : '' }}" @if(request()->routeIs('analisis-perdagangan')) aria-current="page" @endif>
                     <span class="nav-icon" aria-hidden="true">⌕</span>
                     <span class="nav-label">Analisis Perdagangan</span>
-                    <span class="nav-status">Pengembangan</span>
                 </a>
             </nav>
 

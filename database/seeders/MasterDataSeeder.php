@@ -49,24 +49,45 @@ class MasterDataSeeder extends Seeder{
             DB::table('master_provinsi')->insertOrIgnore($prov);
         }
 
-        // 2. DATA KABUPATEN/KOTA (Fokus Provinsi Riau)
-        $kabkotas = [
-            ['kabkota_id' => '1401', 'nama_kabkota' => 'Kab. Kuantan Singingi'],
-            ['kabkota_id' => '1402', 'nama_kabkota' => 'Kab. Indragiri Hulu'],
-            ['kabkota_id' => '1403', 'nama_kabkota' => 'Kab. Indragiri Hilir'],
-            ['kabkota_id' => '1404', 'nama_kabkota' => 'Kab. Pelalawan'],
-            ['kabkota_id' => '1405', 'nama_kabkota' => 'Kab. Siak'],
-            ['kabkota_id' => '1406', 'nama_kabkota' => 'Kab. Kampar'],
-            ['kabkota_id' => '1407', 'nama_kabkota' => 'Kab. Rokan Hulu'],
-            ['kabkota_id' => '1408', 'nama_kabkota' => 'Kab. Bengkalis'],
-            ['kabkota_id' => '1409', 'nama_kabkota' => 'Kab. Rokan Hilir'],
-            ['kabkota_id' => '1410', 'nama_kabkota' => 'Kab. Kepulauan Meranti'],
-            ['kabkota_id' => '1471', 'nama_kabkota' => 'Kota Pekanbaru'],
-            ['kabkota_id' => '1472', 'nama_kabkota' => 'Kota Dumai'],
-        ];
-        foreach ($kabkotas as $kab) {
-            DB::table('master_kabkota')->insertOrIgnore($kab);
-        }
+       // 2. DATA KABUPATEN/KOTA (Fokus Provinsi Riau)
+
+            // Ambil ID Provinsi Riau dari database agar relasinya benar.
+            $provinsiRiau = DB::table('master_provinsi')
+                ->where('kode_provinsi', '14')
+                ->first();
+
+            if (!$provinsiRiau) {
+                throw new \RuntimeException(
+                    'Provinsi Riau belum tersedia di tabel master_provinsi.'
+                );
+            }
+
+            // Kode kabupaten/kota mengikuti kode wilayah yang digunakan
+            // pada data referensi SIDATEX.
+            $kabkotas = [
+                ['kode_kabkota' => '1401', 'nama_kabkota' => 'Kab. Kuantan Singingi'],
+                ['kode_kabkota' => '1402', 'nama_kabkota' => 'Kab. Indragiri Hulu'],
+                ['kode_kabkota' => '1403', 'nama_kabkota' => 'Kab. Indragiri Hilir'],
+                ['kode_kabkota' => '1404', 'nama_kabkota' => 'Kab. Pelalawan'],
+                ['kode_kabkota' => '1405', 'nama_kabkota' => 'Kab. Siak'],
+                ['kode_kabkota' => '1406', 'nama_kabkota' => 'Kab. Kampar'],
+                ['kode_kabkota' => '1407', 'nama_kabkota' => 'Kab. Rokan Hulu'],
+                ['kode_kabkota' => '1408', 'nama_kabkota' => 'Kab. Bengkalis'],
+                ['kode_kabkota' => '1409', 'nama_kabkota' => 'Kab. Rokan Hilir'],
+                ['kode_kabkota' => '1410', 'nama_kabkota' => 'Kab. Kepulauan Meranti'],
+                ['kode_kabkota' => '1471', 'nama_kabkota' => 'Kota Pekanbaru'],
+                ['kode_kabkota' => '1472', 'nama_kabkota' => 'Kota Dumai'],
+            ];
+
+            foreach ($kabkotas as $kab) {
+                DB::table('master_kabkota')->updateOrInsert(
+                    ['kode_kabkota' => $kab['kode_kabkota']],
+                    [
+                        'provinsi_id' => $provinsiRiau->provinsi_id,
+                        'nama_kabkota' => $kab['nama_kabkota'],
+                    ]
+                );
+            }
 
         // 3. DATA NEGARA (Ditambah Indonesia)
         $negaras = [
@@ -92,25 +113,92 @@ class MasterDataSeeder extends Seeder{
             DB::table('master_negara')->insertOrIgnore($neg);
         }
 
-        // 4. DATA HS CODE (Tetap sama)
-        $hscodes = [
-            ['hs2' => '01', 'hs2_desc' => 'Binatang Hidup'],
-            ['hs2' => '02', 'hs2_desc' => 'Daging Hewan'],
-            ['hs2' => '03', 'hs2_desc' => 'Ikan dan Udang'],
-            ['hs2' => '15', 'hs2_desc' => 'Lemak & Minyak Hewan/Nabati'],
-            ['hs2' => '27', 'hs2_desc' => 'Bahan Bakar Mineral'],
-            ['hs2' => '44', 'hs2_desc' => 'Kayu, Barang dari Kayu'],
-            ['hs2' => '47', 'hs2_desc' => 'Bubur Kayu (Pulp)'],
-            ['hs2' => '48', 'hs2_desc' => 'Kertas dan Karton'],
-            ['hs2' => '61', 'hs2_desc' => 'Barang-barang Rajutan'],
-            ['hs2' => '85', 'hs2_desc' => 'Mesin/Peralatan Listrik'],
-        ];
-        foreach ($hscodes as $hs) {
-            DB::table('master_hs')->insertOrIgnore([
-                'hs_code' => $hs['hs2'] . '0000',
-                'hs2' => $hs['hs2'],
-                'hs2_desc' => $hs['hs2_desc'],
+        // 4. DATA HS CODE (Kelompok HS 2 Digit)
+        // Sumber data: database/seeders/data/daftar_hs2_sidatex.csv
+
+        $filePath = database_path('seeders/data/daftar_hs2_sidatex.csv');
+
+        // Pastikan file sumber tersedia sebelum proses impor dimulai.
+        if (!file_exists($filePath)) {
+            throw new \RuntimeException(
+                'File daftar HS2 tidak ditemukan: ' . $filePath
+            );
+        }
+
+        $file = fopen($filePath, 'r');
+
+        if ($file === false) {
+            throw new \RuntimeException(
+                'File daftar HS2 tidak dapat dibuka.'
+            );
+        }
+
+        // Lewati baris pertama karena berisi nama kolom.
+        fgetcsv($file);
+
+        while (($row = fgetcsv($file)) !== false) {
+            $hs2 = str_pad(trim($row[0] ?? ''), 2, '0', STR_PAD_LEFT);
+            $hs2Desc = trim($row[1] ?? '');
+
+            // Abaikan baris yang tidak memiliki kode atau deskripsi.
+            if (!preg_match('/^\d{2}$/', $hs2) || $hs2Desc === '') {
+                continue;
+            }
+
+           // Cari kelompok HS2 yang sudah tersimpan.
+$existingHs = DB::table('master_hs')
+    ->where('hs2', $hs2)
+    ->orderBy('hs_id')
+    ->first();
+
+if ($existingHs) {
+    // Perbarui deskripsi tanpa mengubah ID dan kode HS yang lama.
+    DB::table('master_hs')
+        ->where('hs_id', $existingHs->hs_id)
+        ->update([
+            'hs2_desc' => $hs2Desc,
+        ]);
+
+    continue;
+}
+
+            // Gunakan format kode yang konsisten dengan data master saat ini.
+            $hsCode = $hs2 . '0000';
+
+            // Periksa apakah kode tersebut sudah digunakan oleh baris lain.
+            // Jangan menimpa data yang memiliki kode sama tetapi HS2 berbeda.
+            $existingCode = DB::table('master_hs')
+                ->where('hs_code', $hsCode)
+                ->first();
+
+            if ($existingCode) {
+                if ($existingCode->hs2 !== null && $existingCode->hs2 !== $hs2) {
+                    throw new \RuntimeException(
+                        "Kode HS {$hsCode} sudah digunakan oleh HS2 {$existingCode->hs2}, "
+                        . "sedangkan CSV memuat HS2 {$hs2}."
+                    );
+                }
+
+                // Kode sudah ada, tetapi HS2 belum terisi.
+                // Isi HS2 dan deskripsi tanpa membuat ID baru.
+                DB::table('master_hs')
+                    ->where('hs_id', $existingCode->hs_id)
+                    ->update([
+                        'hs2' => $hs2,
+                        'hs2_desc' => $hs2Desc,
+                    ]);
+
+                continue;
+            }
+
+            // Tambahkan kelompok HS2 baru.
+            DB::table('master_hs')->insert([
+                'hs_code' => $hsCode,
+                'hs2' => $hs2,
+                'hs2_desc' => $hs2Desc,
             ]);
         }
+
+        fclose($file);
     }
 }

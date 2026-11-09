@@ -20,7 +20,7 @@
     .btn-action:hover { background-color: #145dbf; transform: translateY(-2px); }
     .btn-action:disabled { background-color: #94a3b8; cursor: not-allowed; box-shadow: none; transform: none; }
 
-    .preview-area { flex-grow: 1; background-color: rgba(241, 245, 249, 0.5); border-radius: 16px; padding: 1.5rem; position: relative; display: flex; flex-direction: column; gap: 1.5rem; }
+    .preview-area { flex-grow: 1; min-width: 0; background-color: rgba(241, 245, 249, 0.5); border-radius: 16px; padding: 1.5rem; position: relative; display: flex; flex-direction: column; gap: 1.5rem; }
     .preview-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(4px); z-index: 10; display: flex; align-items: center; justify-content: center; border-radius: 16px; flex-direction: column; }
 
     /* MODAL MULTI-STEP (POPUP) */
@@ -78,11 +78,37 @@
     .btn-lanjutkan { background-color: #007bff; color: #fff; border: none; padding: 0.8rem 2rem; border-radius: 8px; font-size: 1rem; font-weight: 500; cursor: pointer; }
 
     /* DASHBOARD PRATINJAU */
-    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; width: 100%; }
     .glass-card { background: rgba(255,255,255,0.9); padding: 1rem; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-    .stat-val { font-size: 2.2rem; font-weight: 800; margin-top: 0.5rem; }
-    .chart-container { background: rgba(255,255,255,0.9); border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); flex-grow: 1; display: flex; align-items: center; justify-content: center; }
+    .stat-val { font-size: clamp(1.4rem, 2.5vw, 2.2rem); font-weight: 800; margin-top: 0.5rem; word-break: break-word; }
+    .chart-container { background: rgba(255,255,255,0.9); border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); flex-grow: 1; display: flex; align-items: center; justify-content: center; min-width: 0; width: 100%; }
+
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
+
+<!-- Banner Notifikasi Server-Side -->
+@if(session('success'))
+<div class="alert-box alert-success" id="server-alert-success" style="margin-bottom: 1.5rem; padding: 1rem 1.5rem; background-color: #d1fae5; border: 1px solid #6ee7b7; color: #065f46; border-radius: 12px; display: flex; align-items: center; justify-content: space-between;">
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+        <span>{{ session('success') }}</span>
+    </div>
+    <a href="{{ route('manajemen-data') }}" style="color: #047857; font-weight: 700; text-decoration: underline;">Buka Manajemen Data &rarr;</a>
+</div>
+@endif
+
+@if(session('error') || $errors->any())
+<div class="alert-box alert-error" id="server-alert-error" style="margin-bottom: 1.5rem; padding: 1rem 1.5rem; background-color: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; border-radius: 12px; display: flex; align-items: center; gap: 0.75rem;">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+    <span>{{ session('error') ?? $errors->first() }}</span>
+</div>
+@endif
+
+<!-- Banner Notifikasi Dinamis (Client-Side AJAX) -->
+<div id="dynamic-notification" style="display: none; margin-bottom: 1.5rem; padding: 1rem 1.5rem; border-radius: 12px; font-weight: 500; align-items: center; justify-content: space-between; gap: 1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.05); transition: all 0.3s ease;">
+    <div style="display: flex; align-items: center; gap: 0.75rem;" id="dynamic-notification-text"></div>
+    <div id="dynamic-notification-action"></div>
+</div>
 
 <div class="module-container">
 
@@ -100,7 +126,7 @@
             <input type="hidden" name="jenis_data_final" id="jenis_data_final">
             <input type="hidden" name="tahun_final" id="tahun_final">
             <input type="hidden" name="bulan_final" id="bulan_final">
-            <input type="hidden" name="status_final" id="status_final">
+            <input type="hidden" name="status_final" id="status_final" value="Private">
 
             <!-- Tambahan hidden input untuk Provinsi, Kabkota, Negara, dan HS Code -->
             <input type="hidden" name="provinsi_final" id="provinsi_final">
@@ -165,7 +191,15 @@
                 <button type="button" class="btn-pilih-file" onclick="document.getElementById('real-file-input').click()">
                     <span style="background:#107C41; color:white; padding: 2px 6px; border-radius:4px; font-size:0.8rem;">X</span> Pilih File Excel...
                 </button>
-                <div id="selected-file-name" style="margin-top: 1rem; color: #2563eb; font-weight: bold; display: none;"></div>
+                <div id="selected-file-name" style="margin-top: 0.75rem; color: #2563eb; font-weight: bold; display: none;"></div>
+
+                <div style="margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.35rem; text-align: left; max-width: 320px; margin-left: auto; margin-right: auto;">
+                    <label for="step1_jenis_data" style="font-size: 0.85rem; font-weight: 600; color: #334155;">Jenis Data Transaksi:</label>
+                    <select id="step1_jenis_data" style="width: 100%; padding: 0.5rem 0.75rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; font-weight: 500; background-color: #fff; color: #1e293b; cursor: pointer;">
+                        <option value="Ekspor">Ekspor</option>
+                        <option value="Impor">Impor</option>
+                    </select>
+                </div>
             </div>
 
             <button type="button" class="btn-upload-step1" id="btn-to-step2">Upload</button>
@@ -257,8 +291,8 @@
                     <div class="filter-group">
                         <label>Public/Pending</label>
                         <select id="filter_status" name="status">
+                            <option value="Pending" selected>Pending</option>
                             <option value="Public">Public</option>
-                            <option value="Pending">Pending</option>
                         </select>
                     </div>
 
@@ -286,10 +320,10 @@
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="btn-kembali" id="btn-back-step1">Kembali...</button>
+                    <button type="button" class="btn-kembali" id="btn-back-sep1">Kembali...</button>
                     <div class="footer-right">
                         <button type="button" class="btn-reset-filter" id="btn-reset-filter">Reset Filter...</button>
-                        <button type="button" class="btn-lanjutkan" id="btn-lanjutkan">Lanjutkan Lekk...</button>
+                        <button type="button" class="btn-lanjutkan" id="btn-lanjutkan">Simpan</button>
                     </div>
                 </div>
             </form>
@@ -304,7 +338,13 @@
 
 <script>
     // Menyimpan Instance Chart.js agar bisa dihapus/dibuat ulang saat Apply ditekan
+    // Menyimpan grafik agar bisa diperbarui tanpa menumpuk grafik lama.
     let previewChartInstance = null;
+
+    // Menyimpan data Excel hasil pembacaan untuk proses Apply.
+    let previewExcelHeaders = [];
+    let previewExcelData = [];
+    let previewExcelSheet = '';
 
     // INISIALISASI SELECT 2 UNTUK DROPDOWN MULTIPLE
     $(document).ready(function() {$('#filter_negara').select2({
@@ -356,45 +396,215 @@
 
         fileInput.addEventListener('change', function(e) {
             if(e.target.files.length > 0) {
+                const f = e.target.files[0];
+                const sizeMB = (f.size / (1024 * 1024)).toFixed(2);
+
+                if (f.size > 50 * 1024 * 1024) {
+                    alert(`Ukuran file "${f.name}" (${sizeMB} MB) melebihi batas maksimal aplikasi sebesar 50 MB. Silakan pilih file lain.`);
+                    fileInput.value = '';
+                    selectedFileName.style.display = 'none';
+                    return;
+                }
+
                 selectedFileName.style.display = 'block';
-                selectedFileName.textContent = e.target.files[0].name;
+                selectedFileName.textContent = `${f.name} (${sizeMB} MB)`;
 
                 const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(e.target.files[0]);
+                dataTransfer.items.add(f);
                 hiddenFileInputFinal.files = dataTransfer.files;
             }
         });
 
-        btnToStep2.addEventListener('click', () => {
-            const currentFile = fileInput.files[0];
-            if(!currentFile) return alert('Pilih file Excel dulu!');
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, {type: 'array'});
-                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const json = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+btnToStep2.addEventListener('click', () => {
+    const currentFile = fileInput.files[0];
 
-                    const totalRows = json.length;
-                    const totalCols = totalRows > 0 ? json[0].length : 0;
+    if (!currentFile) {
+        alert('Pilih file Excel terlebih dahulu!');
+        return;
+    }
 
-                    // PERBAIKAN: Menambahkan perhitungan yang benar untuk MB
-                    const fileSizeMB = (currentFile.size / (1024 * 1024)).toFixed(1);
+    // Memastikan format file yang dipilih sesuai.
+    const extension = currentFile.name.split('.').pop().toLowerCase();
 
-                    displayTotalBaris.textContent = totalRows.toLocaleString('id-ID');
-                    displayNamaFile.textContent = currentFile.name;
-                    displayInfoFile.textContent = `${totalRows.toLocaleString('id-ID')} baris - ${totalCols} kolom - ${fileSizeMB} MB`;
+    if (!['xlsx', 'xls'].includes(extension)) {
+        alert('File harus berformat .xlsx atau .xls.');
+        return;
+    }
 
-                    step1.classList.remove('active');
-                    step2.classList.add('active');
-                } catch (error) {
-                    alert('Gagal membaca file Excel.');
+    // Validasi ukuran file pada sisi browser sebelum proses berat
+    const fileSizeMB = currentFile.size / (1024 * 1024);
+    if (currentFile.size > 50 * 1024 * 1024) {
+        alert(`Ukuran file (${fileSizeMB.toFixed(2)} MB) melebihi batas maksimal 50 MB. Silakan kurangi baris data atau unggah berkas yang lebih ringkas.`);
+        return;
+    }
+
+    // Ambil jenis data yang dipilih dari Langkah 1
+    const step1Jenis = document.getElementById('step1_jenis_data')?.value || 'Ekspor';
+    // Sinkronkan ke dropdown Langkah 2
+    const filterJenisSelect = document.getElementById('filter_jenis');
+    if (filterJenisSelect) {
+        filterJenisSelect.value = step1Jenis;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = function (e) {
+        let workbook;
+
+        try {
+            const data = new Uint8Array(e.target.result);
+
+            workbook = XLSX.read(data, {
+                type: 'array'
+            });
+
+            const sheetNames = workbook.SheetNames || [];
+            if (sheetNames.length === 0) {
+                alert('File Excel tidak memiliki lembar kerja (worksheet).');
+                return;
+            }
+
+            // Prioritas nama sheet berdasarkan jenis data yang dipilih
+            const prioritasSheet = step1Jenis === 'Impor'
+                ? ['Impor', 'Import', 'RawDataImpor', 'Raw_Data_Impor', 'DataImpor', 'Data_Impor', 'RawData', 'Sheet1']
+                : ['Ekspor', 'Export', 'RawDataEkspor', 'Raw_Data_Ekspor', 'DataEkspor', 'Data_Ekspor', 'RawData', 'Sheet1'];
+
+            let namaSheetDitemukan = null;
+            let worksheet = null;
+
+            // 1. Pencarian persis dari daftar prioritas
+            for (const candidate of prioritasSheet) {
+                if (workbook.Sheets[candidate]) {
+                    namaSheetDitemukan = candidate;
+                    worksheet = workbook.Sheets[candidate];
+                    break;
                 }
-            };
-            reader.readAsArrayBuffer(currentFile);
-        });
+            }
+
+            // 2. Pencarian case-insensitive atau parsial
+            if (!worksheet) {
+                const targetKeyword = step1Jenis.toLowerCase();
+                const altKeyword = step1Jenis === 'Impor' ? 'import' : 'export';
+
+                for (const sName of sheetNames) {
+                    const cleanName = sName.toLowerCase().trim();
+                    if (cleanName.includes(targetKeyword) || cleanName.includes(altKeyword)) {
+                        namaSheetDitemukan = sName;
+                        worksheet = workbook.Sheets[sName];
+                        break;
+                    }
+                }
+            }
+
+            // 3. Fallback jika hanya ada 1 sheet di workbook
+            if (!worksheet && sheetNames.length === 1) {
+                namaSheetDitemukan = sheetNames[0];
+                worksheet = workbook.Sheets[namaSheetDitemukan];
+            }
+
+            if (!worksheet) {
+                const daftarSheet = sheetNames.join(', ');
+                alert(`Worksheet untuk data ${step1Jenis} tidak ditemukan. Sheet yang tersedia: [${daftarSheet}]. Silakan periksa file Excel yang dipilih.`);
+                return;
+            }
+
+            // Membaca isi sheet sebagai array.
+            const rows = XLSX.utils.sheet_to_json(worksheet, {
+                header: 1,
+                defval: null,
+                blankrows: false
+            });
+
+            if (rows.length < 2) {
+                alert(`Sheet "${namaSheetDitemukan}" belum memiliki baris data.`);
+                return;
+            }
+
+            const headers = rows[0].map(header =>
+                String(header ?? '').trim().toUpperCase()
+            );
+
+            // Kolom yang harus tersedia untuk proses awal
+            // Nilai transaksi bisa berupa 'FOB (US$)', 'CIF (US$)', 'NILAI', 'FOB', 'CIF', 'VALUE'
+            const hasBulan = headers.some(h => ['BULAN', 'BLN', 'MONTH'].includes(h));
+            const hasTahun = headers.some(h => ['TAHUN', 'THN', 'YEAR'].includes(h));
+            const hasHS = headers.some(h => ['KODE HS', 'HS', 'HS_CODE', 'KODEHS'].includes(h));
+            const hasNegara = headers.some(h => ['KODE_NGR', 'NEGARA', 'KODE_NEGARA', 'NGR'].includes(h));
+            const hasNetto = headers.some(h => ['NETTO (KG)', 'BERAT', 'NETTO', 'WEIGHT'].includes(h));
+            const hasNilai = headers.some(h => ['FOB (US$)', 'CIF (US$)', 'NILAI', 'FOB', 'CIF', 'VAL', 'VALUE'].includes(h));
+            const hasProv = headers.some(h => ['PROVORIG', 'PROPINSI', 'PROVINSI', 'PROPASAL', 'PROV'].includes(h));
+
+            const missingList = [];
+            if (!hasBulan) missingList.push('BULAN');
+            if (!hasTahun) missingList.push('TAHUN');
+            if (!hasHS) missingList.push('KODE HS');
+            if (!hasNegara) missingList.push('KODE_NGR');
+            if (!hasNetto) missingList.push('NETTO (KG)');
+            if (!hasNilai) missingList.push(step1Jenis === 'Impor' ? 'CIF/FOB/NILAI' : 'FOB (US$)');
+            if (!hasProv) missingList.push('PROVORIG');
+
+            if (missingList.length > 0) {
+                alert(
+                    `Kolom wajib tidak ditemukan pada sheet "${namaSheetDitemukan}":\n` +
+                    missingList.join(', ')
+                );
+                return;
+            }
+
+            // Menghitung baris yang memiliki setidaknya satu nilai.
+            const dataRows = rows.slice(1).filter(row =>
+                row.some(value =>
+                    value !== null &&
+                    String(value).trim() !== ''
+                )
+            );
+
+            if (dataRows.length === 0) {
+                alert('Tidak ada baris data yang dapat diproses.');
+                return;
+            }
+
+            // Simpan header dan baris data untuk digunakan oleh tombol Apply.
+            previewExcelHeaders = rows[0].map(header =>
+                String(header ?? '').trim()
+            );
+
+            previewExcelData = dataRows;
+            previewExcelSheet = namaSheetDitemukan;
+
+            const totalRows = dataRows.length;
+            const totalCols = rows[0].length;
+            const fileSizeMB = (
+                currentFile.size / (1024 * 1024)
+            ).toFixed(2);
+
+            displayTotalBaris.textContent =
+                totalRows.toLocaleString('id-ID');
+
+            displayNamaFile.textContent = currentFile.name;
+
+            displayInfoFile.textContent =
+                `${totalRows.toLocaleString('id-ID')} baris data - ` +
+                `${totalCols} kolom - ${fileSizeMB} MB - ` +
+                `Sheet: ${namaSheetDitemukan}`;
+
+            step1.classList.remove('active');
+            step2.classList.add('active');
+
+        } catch (error) {
+            console.error('Kesalahan membaca Excel:', error);
+            alert('File Excel gagal dibaca. Periksa kembali file tersebut.');
+        }
+    };
+
+    reader.onerror = function () {
+        alert('File gagal dibaca oleh browser.');
+    };
+
+    reader.readAsArrayBuffer(currentFile);
+});
+
 
         btnResetFilter.addEventListener('click', () => {
             document.getElementById('filtering-form').reset();
@@ -425,42 +635,271 @@
             modal.style.display = 'none';
         });
 
+
         btnApply.addEventListener('click', () => {
-            if(!isFilterComplete) return alert('Selesaikan filter data terlebih dahulu!');
+            if (!isFilterComplete) {
+                alert('Selesaikan filter data terlebih dahulu!');
+                return;
+            }
 
-            // 1. Hilangkan layar abu-abu (Overlay)
+            // Pastikan preview Excel sudah berhasil dibaca.
+            if (!previewExcelHeaders.length || !previewExcelData.length) {
+                alert('Data Excel belum tersedia. Silakan upload ulang file.');
+                return;
+            }
+
+            // Mencari posisi kolom berdasarkan daftar alternatif nama header
+            const findColumn = (aliases) =>
+                previewExcelHeaders.findIndex(header => {
+                    const clean = String(header).trim().toUpperCase();
+                    return aliases.includes(clean);
+                });
+
+            const colBulan = findColumn(['BULAN', 'BLN', 'MONTH']);
+            const colTahun = findColumn(['TAHUN', 'THN', 'YEAR']);
+            const colNilai = findColumn(['FOB (US$)', 'CIF (US$)', 'NILAI', 'FOB', 'CIF', 'VAL', 'VALUE']);
+
+            console.log('Header Excel:', previewExcelHeaders);
+            console.log('Index kolom:', {
+                bulan: colBulan,
+                tahun: colTahun,
+                nilai: colNilai
+            });
+
+            if (colBulan === -1 || colTahun === -1 || colNilai === -1) {
+                alert('Kolom periode (BULAN, TAHUN) atau nilai transaksi (FOB/CIF/NILAI) tidak ditemukan pada file.');
+                return;
+            }
+
+            const jenisData = document.getElementById('jenis_data_final').value;
+            const tahunDipilih = Number(document.getElementById('tahun_final').value);
+            const bulanDipilih = Number(document.getElementById('bulan_final').value);
+
+            // Mengubah nilai Excel menjadi angka, termasuk format angka dengan koma.
+            const parseNumber = (value) => {
+                if (typeof value === 'number') {
+                    return Number.isFinite(value) ? value : null;
+                }
+
+                if (value === null || value === undefined || String(value).trim() === '') {
+                    return null;
+                }
+
+                let text = String(value).trim().replace(/\s/g, '');
+
+                // Menangani format angka seperti 1,234.56 atau 1234,56.
+                if (text.includes('.') && text.includes(',')) {
+                    if (text.lastIndexOf(',') > text.lastIndexOf('.')) {
+                        text = text.replace(/\./g, '').replace(',', '.');
+                    } else {
+                        text = text.replace(/,/g, '');
+                    }
+                } else if (text.includes(',')) {
+                    text = text.replace(',', '.');
+                }
+
+                const number = Number(text);
+                return Number.isFinite(number) ? number : null;
+            };
+
+
+            // ─────────────────────────────────────────────────────────────────
+            // HELPER: Mengubah nama bulan Bahasa Indonesia menjadi angka 1–12.
+            // Menerima string nama bulan atau angka langsung.
+            // ─────────────────────────────────────────────────────────────────
+            const NAMA_BULAN_KE_ANGKA = {
+                januari: 1, februari: 2, maret: 3, april: 4,
+                mei: 5, juni: 6, juli: 7, agustus: 8,
+                september: 9, oktober: 10, november: 11, desember: 12
+            };
+
+            const parseBulan = (value) => {
+                if (value === null || value === undefined) return null;
+                const teks = String(value).trim().toLowerCase();
+                if (NAMA_BULAN_KE_ANGKA[teks] !== undefined) {
+                    return NAMA_BULAN_KE_ANGKA[teks];
+                }
+                const angka = parseNumber(value);
+                return (angka !== null && Number.isInteger(angka) && angka >= 1 && angka <= 12)
+                    ? angka : null;
+            };
+
+            // ─────────────────────────────────────────────────────────────────
+            // HELPER: Format angka ke format Indonesia (misal: 1.234,56)
+            // ─────────────────────────────────────────────────────────────────
+            const formatNilai = (nilai) =>
+                nilai.toLocaleString('id-ID', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+
+            // ─────────────────────────────────────────────────────────────────
+            // HELPER: Hitung pertumbuhan persen antara dua periode.
+            // Mengembalikan "—" jika nilai pembanding nol atau tidak tersedia.
+            // ─────────────────────────────────────────────────────────────────
+            const hitungPertumbuhan = (nilaiSekarang, nilaiSebelumnya) => {
+                if (nilaiSebelumnya === undefined || nilaiSebelumnya === null || nilaiSebelumnya === 0) {
+                    return '—';
+                }
+                const pertumbuhan =
+                    ((nilaiSekarang - nilaiSebelumnya) / Math.abs(nilaiSebelumnya)) * 100;
+                return `${pertumbuhan > 0 ? '+' : ''}${pertumbuhan.toLocaleString('id-ID', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                })}%`;
+            };
+
+            // ─────────────────────────────────────────────────────────────────
+            // HELPER: Jumlahkan nilai FOB pada rentang bulan [awal, akhir).
+            // Indeks berbasis 0: Jan=0, Des=11.
+            // Mengembalikan null jika tidak ada data untuk tahun tersebut.
+            // ─────────────────────────────────────────────────────────────────
+            const totalRentangBulan = (dataPerTahun, tahun, awal, akhir) => {
+                const data = dataPerTahun[tahun];
+                if (!data) return null;
+                return data.slice(awal, akhir).reduce((total, nilai) => total + nilai, 0);
+            };
+
+
+
+            let jumlahBarisValid = 0;
+            let jumlahBarisTidakValid = 0;
+            const totalPerTahunBulan = {};
+
+            previewExcelData.forEach(row => {
+                let tahun = parseNumber(row[colTahun]);
+                const bulanRaw = row[colBulan];
+                const nilai = parseNumber(row[colNilai]);
+
+                // Menyesuaikan kode tahun pendek 20–26 menjadi 2020–2026.
+                if (tahun !== null && tahun >= 20 && tahun <= 26) {
+                    tahun += 2000;
+                }
+
+                // Gunakan parseBulan yang sudah menangani nama bulan & angka.
+                const bulan = parseBulan(bulanRaw);
+
+                // Lewati baris yang periodenya atau nilainya tidak valid.
+                if (
+                    tahun === null ||
+                    bulan === null ||
+                    nilai === null ||
+                    !Number.isInteger(tahun) ||
+                    !Number.isInteger(bulan) ||
+                    bulan < 1 || bulan > 12
+                ) {
+                    jumlahBarisTidakValid++;
+                    return;
+                }
+
+                jumlahBarisValid++;
+
+                // Inisialisasi array 12 bulan (semua nol) jika tahun belum ada.
+                if (!totalPerTahunBulan[tahun]) {
+                    totalPerTahunBulan[tahun] = Array(12).fill(0);
+                }
+
+                // Akumulasikan nilai FOB ke indeks bulan yang sesuai (0–11).
+                totalPerTahunBulan[tahun][bulan - 1] += nilai;
+            });
+
+            // Log untuk transparansi — lihat di Console browser (F12).
+            console.info('Baris valid:', jumlahBarisValid);
+            console.info('Baris tidak valid:', jumlahBarisTidakValid);
+            console.info('Distribusi data per tahun:', Object.keys(totalPerTahunBulan));
+
+            // Sembunyikan overlay dan tampilkan area pratinjau.
             previewOverlay.style.display = 'none';
-            btnSimpan.disabled = false;
 
-            // 2. Ambil parameter untuk judul grafik
-            let jenisData = document.getElementById('jenis_data_final').value || 'Ekspor';
-            let tahunData = document.getElementById('tahun_final').value || new Date().getFullYear();
+            // ─────────────────────────────────────────────────────────────────
+            // STATISTIK PERTUMBUHAN
+            // Semua kalkulasi menggunakan totalPerTahunBulan sebagai sumber tunggal.
+            // ─────────────────────────────────────────────────────────────────
 
-            // 3. Simulasi Angka Statistik (Persentase)
-            document.getElementById('val-mtom').textContent = '+' + (Math.random() * 5 + 1).toFixed(2) + '%';
-            document.getElementById('val-qtoq').textContent = '+' + (Math.random() * 10 + 2).toFixed(2) + '%';
-            document.getElementById('val-yony').textContent = (Math.random() * 15 - 5).toFixed(2) + '%';
-            document.getElementById('val-ctoc').textContent = '+' + (Math.random() * 8 + 1).toFixed(2) + '%';
+            // Nilai FOB bulan yang dipilih pada tahun yang dipilih.
+            const totalBulanIni =
+                totalPerTahunBulan[tahunDipilih]?.[bulanDipilih - 1] ?? 0;
 
-            // 4. Proses Menggambar Grafik Batang dengan Chart.js
+            // M-to-M: nilai bulan ini vs bulan sebelumnya.
+            // Jika bulan ini Januari, bandingkan dengan Desember tahun lalu.
+            const bulanSebelumnya = bulanDipilih === 1 ? 12 : bulanDipilih - 1;
+            const tahunBulanSebelumnya = bulanDipilih === 1 ? tahunDipilih - 1 : tahunDipilih;
+            const totalBulanSebelumnya =
+                totalPerTahunBulan[tahunBulanSebelumnya]?.[bulanSebelumnya - 1];
+            document.getElementById('val-mtom').textContent =
+                hitungPertumbuhan(totalBulanIni, totalBulanSebelumnya);
+
+            // Q-to-Q: total kuartal berjalan vs kuartal sebelumnya.
+            // Kuartal 1: Jan–Mar (indeks 0–2), Q2: Apr–Jun, Q3: Jul–Sep, Q4: Okt–Des.
+            const kuartalIni = Math.ceil(bulanDipilih / 3);
+            const bulanAwalKuartal = (kuartalIni - 1) * 3;   // indeks mulai (0-based)
+            const bulanAkhirKuartal = kuartalIni * 3;         // indeks akhir eksklusif
+            const totalKuartalIni =
+                totalRentangBulan(totalPerTahunBulan, tahunDipilih, bulanAwalKuartal, bulanAkhirKuartal);
+
+            const kuartalSebelumnya = kuartalIni === 1 ? 4 : kuartalIni - 1;
+            const tahunKuartalSebelumnya = kuartalIni === 1 ? tahunDipilih - 1 : tahunDipilih;
+            const totalKuartalSebelumnya = totalRentangBulan(
+                totalPerTahunBulan,
+                tahunKuartalSebelumnya,
+                (kuartalSebelumnya - 1) * 3,
+                kuartalSebelumnya * 3
+            );
+            document.getElementById('val-qtoq').textContent =
+                hitungPertumbuhan(totalKuartalIni, totalKuartalSebelumnya);
+
+            // Y-on-Y: nilai bulan ini vs bulan yang sama tahun lalu.
+            const totalBulanTahunLalu =
+                totalPerTahunBulan[tahunDipilih - 1]?.[bulanDipilih - 1];
+            document.getElementById('val-yony').textContent =
+                hitungPertumbuhan(totalBulanIni, totalBulanTahunLalu);
+
+            // C-to-C: kumulatif Jan s.d. bulan dipilih, dibanding periode sama tahun lalu.
+            // Indeks 0 s.d. bulanDipilih (eksklusif) = Jan hingga bulan terpilih.
+            const totalKumulatifTahunIni =
+                totalRentangBulan(totalPerTahunBulan, tahunDipilih, 0, bulanDipilih);
+            const totalKumulatifTahunLalu =
+                totalRentangBulan(totalPerTahunBulan, tahunDipilih - 1, 0, bulanDipilih);
+            document.getElementById('val-ctoc').textContent =
+                hitungPertumbuhan(totalKumulatifTahunIni, totalKumulatifTahunLalu);
+
+            // ─────────────────────────────────────────────────────────────────
+            // GRAFIK BULANAN
+            // Ambil array 12 elemen untuk tahun dipilih; bulan tanpa data = 0.
+            // Konversi ke juta US$ agar skala grafik lebih terbaca.
+            // ─────────────────────────────────────────────────────────────────
+            const nilaiPerBulan =
+                totalPerTahunBulan[tahunDipilih] ?? Array(12).fill(0);
+            const nilaiJutaUSD = nilaiPerBulan.map(v => v / 1_000_000);
+
+
+
             const ctx = document.getElementById('previewChart').getContext('2d');
 
-            // Hancurkan grafik lama jika sudah ada (mencegah error tumpang tindih saat klik apply berulang)
             if (previewChartInstance) {
                 previewChartInstance.destroy();
             }
 
-            // Tentukan warna batang berdasarkan jenis Ekspor / Impor
-            const bgColor = jenisData === 'Ekspor' ? 'rgba(37, 99, 235, 0.7)' : 'rgba(16, 185, 129, 0.7)';
-            const bdColor = jenisData === 'Ekspor' ? 'rgba(37, 99, 235, 1)' : 'rgba(16, 185, 129, 1)';
+            const bgColor = jenisData === 'Ekspor'
+                ? 'rgba(37, 99, 235, 0.7)'
+                : 'rgba(16, 185, 129, 0.7)';
+
+            const bdColor = jenisData === 'Ekspor'
+                ? 'rgba(37, 99, 235, 1)'
+                : 'rgba(16, 185, 129, 1)';
+
+            const namaBulan = [
+                'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+                'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+            ];
 
             previewChartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'],
+                    labels: namaBulan,
                     datasets: [{
-                        label: `Nilai ${jenisData} Tahun ${tahunData} (Juta USD)`,
-                        data: Array.from({length: 12}, () => Math.floor(Math.random() * 500) + 100), // Data simulasi
+                        label: `Total nilai ${jenisData} ${tahunDipilih} (juta US$)`,
+                        data: nilaiJutaUSD,
                         backgroundColor: bgColor,
                         borderColor: bdColor,
                         borderWidth: 1,
@@ -469,24 +908,230 @@
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false, // Penting agar grafik mengisi kotak container
+                    maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'top' },
+                        legend: {
+                            position: 'top'
+                        },
                         title: {
                             display: true,
-                            text: `Pratinjau Tren ${jenisData} - Simulasi Data`,
-                            font: { size: 16 },
-                            padding: { bottom: 20 }
+                            text: `Tren Nilai ${jenisData} Provinsi Riau Tahun ${tahunDipilih}`,
+                            font: {
+                                size: 16
+                            },
+                            padding: {
+                                bottom: 20
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: context =>
+                                    `${context.dataset.label}: ${formatNilai(context.raw)}`
+                            }
                         }
                     },
                     scales: {
-                        y: { beginAtZero: true }
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Juta US$'
+                            }
+                        }
                     }
                 }
             });
+
+            // Aktifkan Simpan hanya setelah Apply berhasil dijalankan.
+            btnSimpan.disabled = false;
+
+            // Log total baris valid dan nilai bulan yang dipilih untuk debugging.
+            console.info('Total baris valid seluruh data:', jumlahBarisValid);
+            console.info('Total baris tidak valid:', jumlahBarisTidakValid);
+            console.info(
+                `Total FOB bulan ${bulanDipilih}/${tahunDipilih} (US$):`,
+                totalPerTahunBulan[tahunDipilih]?.[bulanDipilih - 1] ?? 0
+            );
+
+        });
+
+        // ─────────────────────────────────────────────────────────────────
+        // FUNGSI NOTIFIKASI DINAMIS
+        // ─────────────────────────────────────────────────────────────────
+        const notifBox = document.getElementById('dynamic-notification');
+        const notifText = document.getElementById('dynamic-notification-text');
+        const notifAction = document.getElementById('dynamic-notification-action');
+
+        function showNotification(type, message, actionHtml = '') {
+            if (!notifBox) return;
+            notifBox.style.display = 'flex';
+            if (type === 'success') {
+                notifBox.style.backgroundColor = '#d1fae5';
+                notifBox.style.border = '1px solid #6ee7b7';
+                notifBox.style.color = '#065f46';
+                notifText.innerHTML = `
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    <span>${message}</span>
+                `;
+            } else {
+                notifBox.style.backgroundColor = '#fee2e2';
+                notifBox.style.border = '1px solid #fca5a5';
+                notifBox.style.color = '#991b1b';
+                notifText.innerHTML = `
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span>${message}</span>
+                `;
+            }
+            notifAction.innerHTML = actionHtml;
+            notifBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function hideNotification() {
+            if (notifBox) notifBox.style.display = 'none';
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // HANDLER SIMPAN DATA (AJAX + INDIKATOR LOADING + GUARD DOUBLE CLICK)
+        // ─────────────────────────────────────────────────────────────────
+        const formSimpan = document.getElementById('form-simpan');
+
+        formSimpan.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            // 1. Validasi awal: tombol Apply harus sudah dijalankan dan data tersedia
+            if (!isFilterComplete || !previewExcelData.length) {
+                showNotification('error', 'Silakan pilih file dan klik tombol "Apply" terlebih dahulu sebelum menyimpan data.');
+                return;
+            }
+
+            // 2. Ambil file asli dari input (baik dari fileInput modal maupun hidden input)
+            const file = (fileInput && fileInput.files && fileInput.files[0])
+                      || (hiddenFileInputFinal && hiddenFileInputFinal.files && hiddenFileInputFinal.files[0]);
+
+            if (!file) {
+                showNotification('error', 'File Excel belum dipilih atau tidak terbaca. Silakan pilih kembali file Excel.');
+                return;
+            }
+
+            // 3. Siapkan FormData langsung dari form + file asli
+            const chosenStatus = document.getElementById('filter_status')?.value
+                              || document.getElementById('status_final')?.value
+                              || 'Pending';
+            document.getElementById('status_final').value = chosenStatus;
+
+            const formData = new FormData(formSimpan);
+            formData.set('excel_file_final', file);
+            formData.set('status_final', chosenStatus);
+
+            // 4. Set state tombol Simpan ke kondisi LOADING
+            const originalBtnHtml = btnSimpan.innerHTML;
+            btnSimpan.disabled = true;
+            btnSimpan.innerHTML = `
+                <span style="display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                        <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+                        <path d="M12 2a10 10 0 0 1 10 10" stroke-opacity="0.75"></path>
+                    </svg>
+                    Menyimpan...
+                </span>
+            `;
+            hideNotification();
+
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                               || document.querySelector('input[name="_token"]')?.value
+                               || '';
+
+                const response = await fetch(formSimpan.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+
+                // Cek status HTTP khusus terlebih dahulu
+                if (response.status === 419) {
+                    showNotification('error', 'Sesi login atau token keamanan (CSRF) Anda telah kedaluwarsa. Silakan refresh halaman browser (F5) lalu ulangi proses upload.');
+                    btnSimpan.innerHTML = originalBtnHtml;
+                    btnSimpan.disabled = false;
+                    return;
+                }
+
+                // Coba parse respon sebagai JSON atau teks
+                const rawText = await response.text();
+                let result = null;
+                try {
+                    result = JSON.parse(rawText);
+                } catch (parseErr) {
+                    console.warn('Respon server bukan JSON:', response.status, rawText);
+                }
+
+                if (response.status === 413) {
+                    const serverMsg = result && result.message ? result.message : 'Ukuran payload file melampaui batas server. Pastikan ukuran file tidak melebihi 50 MB.';
+                    showNotification('error', serverMsg);
+                    btnSimpan.innerHTML = originalBtnHtml;
+                    btnSimpan.disabled = false;
+                    return;
+                }
+
+                if (response.ok && result && result.success) {
+                    // Sukses menyimpan ke database
+                    btnSimpan.innerHTML = '✓ Tersimpan';
+                    btnSimpan.style.backgroundColor = '#10b981';
+
+                    const actionBtn = `
+                        <a href="${result.redirect_url || '{{ route('manajemen-data') }}'}"
+                           style="background: #059669; color: white; padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 0.4rem;">
+                            Buka Manajemen Data &rarr;
+                        </a>
+                    `;
+                    showNotification('success', result.message || 'Data berhasil disimpan ke database!', actionBtn);
+
+                    // Kembalikan tombol ke aktif setelah beberapa detik jika pengguna ingin aksi lain
+                    setTimeout(() => {
+                        btnSimpan.innerHTML = originalBtnHtml;
+                        btnSimpan.style.backgroundColor = '';
+                        btnSimpan.disabled = false;
+                    }, 4000);
+
+                } else {
+                    // Respon error dari server / validasi Laravel
+                    let errMsg = 'Gagal menyimpan data ke database.';
+                    if (result && result.message) {
+                        errMsg = result.message;
+                    } else if (result && result.errors) {
+                        errMsg = Object.values(result.errors).flat().join('<br>');
+                    } else if (response.status === 500) {
+                        errMsg = 'Terjadi kesalahan pada server (Error 500). Periksa log aplikasi atau koneksi database.';
+                    } else if (response.status === 404) {
+                        errMsg = 'Rute penyimpanan tidak ditemukan (Error 404).';
+                    }
+
+                    showNotification('error', errMsg);
+                    btnSimpan.innerHTML = originalBtnHtml;
+                    btnSimpan.disabled = false;
+                }
+
+            } catch (networkError) {
+                console.error('Error saat menyimpan ke database:', networkError);
+                showNotification('error', 'Terjadi kesalahan koneksi atau jaringan saat menghubungi server: ' + networkError.message);
+                btnSimpan.innerHTML = originalBtnHtml;
+                btnSimpan.disabled = false;
+            }
         });
 
         btnResetDashboard.addEventListener('click', () => {
+            hideNotification();
             previewOverlay.style.display = 'flex';
             document.getElementById('filtering-form').reset();
             document.getElementById('form-simpan').reset();
@@ -500,6 +1145,9 @@
             btnApply.disabled = true;
             btnSimpan.disabled = true;
             isFilterComplete = false;
+            previewExcelHeaders = [];
+            previewExcelData = [];
+            previewExcelSheet = '';
             step2.classList.remove('active');
             step1.classList.add('active');
 

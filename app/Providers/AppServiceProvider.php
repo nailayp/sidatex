@@ -19,6 +19,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        \Illuminate\Support\Facades\View::composer('*', function ($view) {
+            try {
+                $totalTrash = \Illuminate\Support\Facades\DB::table('trash')->whereNull('restored_at')->count();
+                $view->with('sidebarTotalTrash', $totalTrash);
+            } catch (\Throwable $e) {
+                $view->with('sidebarTotalTrash', 0);
+            }
+        });
     }
 }

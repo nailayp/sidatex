@@ -13,78 +13,64 @@
           (Jika folder images belum ada, buat foldernya di dalam folder public)
        3. Ubah tulisan 'foto-gedung-bps.jpg' di bawah ini dengan nama file foto Anda.
     ==================================================================== */
-    #full-background {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        z-index: -999;
-        background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('{{ asset("images/foto-kantor.jpg") }}');
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-    }
-
     /* Container Utama */
     .management-wrapper {
         min-height: calc(100vh - 80px);
-        padding: 2rem;
+        padding: 1.25rem 1.5rem;
         position: relative;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
 
     /* Header Judul */
     .header-title-container {
         display: flex;
         align-items: center;
-        gap: 1.5rem;
-        background: rgba(255, 255, 255, 0.95);
-        padding: 1rem 2rem;
-        border-radius: 12px;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        gap: 1.25rem;
+        background: #ffffff;
+        padding: 1rem 1.5rem;
+        border-radius: 10px;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        border: 1px solid #e2e8f0;
     }
     .header-title-container h1 {
-        font-size: 2rem;
+        font-size: 1.5rem;
         font-weight: 700;
-        font-style: italic;
         color: #1e293b;
         margin: 0;
-        border-left: 2px solid #cbd5e1;
-        padding-left: 1.5rem;
+        border-left: 3px solid #0284c7;
+        padding-left: 1rem;
     }
 
     /* Grid Statistik */
     .stats-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: 1.5rem;
-        margin-bottom: 2rem;
+        gap: 1rem;
+        margin-bottom: 1.25rem;
     }
     .stat-card {
-        background: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(10px);
-        border-radius: 16px;
-        padding: 1.5rem;
+        background: #ffffff;
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        border: 1px solid rgba(255,255,255,0.5);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        border: 1px solid #e2e8f0;
     }
     .stat-info { display: flex; flex-direction: column; }
-    .stat-label { font-size: 1rem; color: #475569; font-weight: 500; margin-bottom: 0.2rem; }
-    .stat-value { font-size: 2.5rem; font-weight: 800; color: #0f172a; line-height: 1; }
-    .stat-icon { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: white; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+    .stat-label { font-size: 0.85rem; color: #64748b; font-weight: 600; margin-bottom: 0.2rem; }
+    .stat-value { font-size: 1.8rem; font-weight: 800; color: #1e293b; line-height: 1.1; }
+    .stat-icon { width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: #f0f9ff; color: #0284c7; }
 
     /* Container Tabel */
     .table-container {
-        background: rgba(255, 255, 255, 0.9);
-        backdrop-filter: blur(15px);
-        border-radius: 20px;
-        padding: 2rem;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        border: 1px solid #e2e8f0;
     }
 
     /* Tabel Desain Kustom */
@@ -138,9 +124,6 @@
 @endpush
 
 @section('content')
-<!-- Layer Background Full Layar -->
-<div id="full-background"></div>
-
 <div class="management-wrapper">
 
     <!-- Peringatan Sukses dari Redirect -->
@@ -150,9 +133,23 @@
         </div>
     @endif
 
+    @if(session('error'))
+        <div style="background: #ef4444; color: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; text-align: center; font-weight: bold;">
+            {{ session('error') }}
+        </div>
+    @endif
+
     <!-- Header Judul -->
-    <div class="header-title-container">
-        <h1>Manajement Data Terunggah</h1>
+    <div class="header-title-container" style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 1.5rem;">
+            <h1>Manajemen Data Terunggah</h1>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <a href="{{ route('trash-data') }}" style="text-decoration: none; background: #ffffff; border: 1.5px solid #ef4444; color: #ef4444; padding: 0.55rem 1.1rem; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.12); font-size: 0.9rem; transition: all 0.2s;">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                Trash Dokumen ({{ $totalTrash ?? 0 }})
+            </a>
+        </div>
     </div>
 
     <!-- 4 Kartu Statistik Atas -->
@@ -175,7 +172,7 @@
 
         <div class="stat-card">
             <div class="stat-info">
-                <span class="stat-label">Pending Public</span>
+                <span class="stat-label">Data Private</span>
                 <span class="stat-value">{{ number_format($pending, 0, ',', '.') }}</span>
             </div>
             <!-- ... icon ... -->
@@ -205,8 +202,9 @@
             </thead>
             <tbody>
                 @forelse($dokumens as $index => $doc)
+                @php $docId = $doc->batch_id ?? $doc->id ?? $index; @endphp
                 <tr>
-                    <td><input type="radio" name="select_row" value="{{ $doc->id }}"></td>
+                    <td><input type="radio" name="select_row" value="{{ $docId }}"></td>
                     <td>
                         <div class="doc-info">
                             <svg class="excel-logo" viewBox="0 0 24 24" fill="none">
@@ -215,7 +213,7 @@
                             </svg>
                             <div class="doc-text">
                                 <h4>{{ $doc->nama_file }}</h4> <!-- Sesuai nama kolom di DB -->
-                                <p>{{ $doc->jenis_data ?? 'SpreadSheet' }}</p>
+                                <p>{{ $doc->jenis_data ?? 'SpreadSheet' }} &bull; <strong style="color: #2563eb;">{{ number_format($doc->total_transaksi ?? 0, 0, ',', '.') }} Transaksi</strong></p>
                             </div>
                         </div>
                     </td>
@@ -225,22 +223,35 @@
                             <div class="time">{{ \Carbon\Carbon::parse($doc->created_at)->format('H:i') }}</div>
                         </div>
                     </td>
-                    <td style="color: #475569; font-weight: 500;">{{ $doc->ukuran_file }} MB</td>
+                    <td style="color: #475569; font-weight: 500;">{{ $doc->ukuran_file ?? 0 }} MB</td>
                     <td style="color: #475569; font-weight: 500;">
-                        @if($doc->status == 'Public')
-                            <span style="color: #10b981;">Public</span>
+                        @if($doc->status == 'RILIS' || $doc->status == 'Public')
+                            <span style="color: #10b981; font-weight: 600; background: #ecfdf5; padding: 4px 8px; border-radius: 6px; font-size: 0.85rem;">Public / Rilis</span>
+                        @elseif($doc->status == 'PRIVATE')
+                            <span style="color: #6366f1; font-weight: 600; background: #eef2ff; padding: 4px 8px; border-radius: 6px; font-size: 0.85rem;">Private</span>
                         @else
-                            <span style="color: #f59e0b;">Pending</span>
+                            <span style="color: #f59e0b; font-weight: 600; background: #fffbeb; padding: 4px 8px; border-radius: 6px; font-size: 0.85rem;">Draft</span>
                         @endif
                     </td>
                     <td class="action-cell">
-                        <button class="btn-action-dots" onclick="toggleMenu('menu-{{ $doc->id }}')">⋮</button>
-                        <!-- Menu Dropdown -->
-                        <div class="dropdown-menu" id="menu-{{ $doc->id }}">
-                            <button>Ekspor Data</button>
-                            <button>Edit Data</button>
-                            <button>Hapus Data</button>
-                            <button>{{ $doc->status == 'Public' ? 'Tarik Public' : 'Public Data' }}</button>
+                        <button class="btn-action-dots" onclick="toggleMenu('menu-{{ $docId }}')">⋮</button>
+                        <div class="dropdown-menu" id="menu-{{ $docId }}">
+                            <button type="button" class="btn-export-item" onclick="downloadExport({{ $docId }}, this)" style="color: #2563eb; font-weight: 600;">
+                                <span class="btn-text">Ekspor Data</span>
+                            </button>
+                            <button type="button" onclick="openEditModal({{ $docId }}, '{{ addslashes($doc->nama_file) }}', '{{ $doc->jenis_data ?? 'Ekspor' }}', '{{ $doc->status }}')">Edit Data</button>
+                            @if(Auth::user() && Auth::user()->role_id == 1)
+                            <form action="{{ route('manajemen-data.destroy', $docId) }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin memindahkan dokumen \'{{ addslashes($doc->nama_file) }}\' ke Trash? Data dapat dipulihkan kembali dari Trash.');" style="margin: 0; padding: 0; width: 100%;">
+                                @csrf
+                                <button type="submit" style="color: #ef4444;">Hapus Data</button>
+                            </form>
+                            <form action="{{ route('manajemen-data.toggle-release', $docId) }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin {{ ($doc->status == 'RILIS' || $doc->status == 'Public') ? 'menarik status ke Private' : 'mempublikasikan data ini ke Public' }}?');" style="margin: 0; padding: 0; width: 100%;">
+                                @csrf
+                                <button type="submit" style="{{ ($doc->status == 'RILIS' || $doc->status == 'Public') ? 'color: #dc2626; font-weight: 600;' : 'color: #16a34a; font-weight: 600;' }}">
+                                    {{ ($doc->status == 'RILIS' || $doc->status == 'Public') ? 'Tarik ke Private' : 'Publish ke Public' }}
+                                </button>
+                            </form>
+                            @endif
                         </div>
                     </td>
                 </tr>
@@ -254,18 +265,103 @@
 
         <!-- Navigasi Pagination Otomatis dari Laravel -->
         <div class="pagination-wrapper" style="margin-top: 2rem; display: flex; justify-content: flex-end;">
-            {{ $dokumens->links('pagination::bootstrap-4') }} <!-- Atau sesuaikan dengan view pagination kustom Anda -->
+            {{ $dokumens->links('pagination::bootstrap-4') }}
         </div>
-        </table>
+    </div>
+</div>
 
-        <!-- Navigasi Pagination Bawah -->
-        <div class="pagination-wrapper">
-            <button class="page-btn">Sebelumnya</button>
-            <button class="page-btn active">1</button>
-            <button class="page-btn">2</button>
-            <button class="page-btn">3</button>
-            <button class="page-btn">4</button>
-            <button class="page-btn">Selanjutnya</button>
+<!-- Modal Edit Dokumen -->
+<div id="modal-edit" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); backdrop-filter: blur(5px); z-index: 9999; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 16px; width: 90%; max-width: 500px; padding: 2rem; box-shadow: 0 20px 40px rgba(0,0,0,0.2); animation: fadeIn 0.2s ease;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem;">
+            <h3 style="margin: 0; font-size: 1.3rem; color: #1e293b; font-weight: 700;">Edit Dokumen Data</h3>
+            <button type="button" onclick="closeEditModal()" style="background: none; border: none; font-size: 1.6rem; cursor: pointer; color: #94a3b8; line-height: 1;">&times;</button>
+        </div>
+        <form id="form-edit-batch" method="POST" action="">
+            @csrf
+            <div style="margin-bottom: 1.2rem;">
+                <label style="display: block; font-weight: 600; color: #475569; margin-bottom: 0.5rem; font-size: 0.9rem;">Nama Dokumen / File</label>
+                <input type="text" name="nama_file" id="edit_nama_file" required style="width: 100%; padding: 0.75rem 1rem; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; outline: none; transition: border 0.2s;">
+            </div>
+            <div style="margin-bottom: 1.2rem;">
+                <label style="display: block; font-weight: 600; color: #475569; margin-bottom: 0.5rem; font-size: 0.9rem;">Jenis Perdagangan</label>
+                <select name="jenis_data" id="edit_jenis_data" required style="width: 100%; padding: 0.75rem 1rem; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; background: white; outline: none;">
+                    <option value="Ekspor">Ekspor</option>
+                    <option value="Impor">Impor</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 1.5rem; padding: 0.8rem 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 0.85rem; color: #64748b;">Status Saat Ini:</span>
+                    <span id="edit_status_info" style="font-weight: 700; font-size: 0.95rem;"></span>
+                </div>
+                <p style="margin: 0.4rem 0 0 0; font-size: 0.8rem; color: #94a3b8;">*Status Pending tidak akan berubah menjadi Public saat melakukan pengeditan.</p>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 0.8rem;">
+                <button type="button" onclick="closeEditModal()" style="padding: 0.7rem 1.4rem; border: 1px solid #cbd5e1; background: #f1f5f9; color: #475569; border-radius: 8px; font-weight: 600; cursor: pointer;">Batal</button>
+                <button type="submit" style="padding: 0.7rem 1.6rem; border: none; background: #2563eb; color: white; border-radius: 8px; font-weight: 600; cursor: pointer;">Simpan Perubahan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Trash / Sampah -->
+<div id="modal-trash" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); backdrop-filter: blur(5px); z-index: 9999; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 16px; width: 90%; max-width: 720px; max-height: 85vh; overflow-y: auto; padding: 2rem; box-shadow: 0 20px 40px rgba(0,0,0,0.2);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem;">
+            <div>
+                <h3 style="margin: 0; font-size: 1.3rem; color: #1e293b; font-weight: 700;">Trash / Sampah Dokumen</h3>
+                <p style="margin: 0.3rem 0 0 0; font-size: 0.85rem; color: #64748b;">Dokumen yang dihapus ke Trash dapat dipulihkan sewaktu-waktu.</p>
+            </div>
+            <button type="button" onclick="closeTrashModal()" style="background: none; border: none; font-size: 1.6rem; cursor: pointer; color: #94a3b8; line-height: 1;">&times;</button>
+        </div>
+
+        @if(count($trashedItems ?? []) === 0)
+            <div style="text-align: center; color: #64748b; padding: 3rem 1rem;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" style="margin-bottom: 1rem;">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                <p style="margin: 0; font-weight: 500;">Trash kosong. Tidak ada dokumen yang terhapus.</p>
+            </div>
+        @else
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #e2e8f0; text-align: left; color: #475569;">
+                        <th style="padding: 0.7rem 0.5rem;">Nama Dokumen</th>
+                        <th style="padding: 0.7rem 0.5rem;">Dihapus Oleh</th>
+                        <th style="padding: 0.7rem 0.5rem;">Waktu Dihapus</th>
+                        <th style="padding: 0.7rem 0.5rem; text-align: center;">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($trashedItems as $item)
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 0.8rem 0.5rem;">
+                            <strong style="color: #1e293b;">{{ $item->nama_file }}</strong>
+                            <div style="font-size: 0.8rem; color: #64748b;">{{ $item->jenis_data }} &bull; {{ $item->ukuran_file ?? 0 }} MB</div>
+                        </td>
+                        <td style="padding: 0.8rem 0.5rem; color: #334155;">{{ $item->deleter_name ?? 'Super Admin' }}</td>
+                        <td style="padding: 0.8rem 0.5rem; color: #64748b;">{{ \Carbon\Carbon::parse($item->deleted_at)->format('d M Y H:i') }}</td>
+                        <td style="padding: 0.8rem 0.5rem; text-align: center;">
+                            <div style="display: flex; gap: 0.4rem; justify-content: center;">
+                                <form action="{{ route('manajemen-data.restore', $item->batch_id) }}" method="POST" onsubmit="return confirm('Pulihkan dokumen ini kembali ke daftar aktif?');" style="margin: 0;">
+                                    @csrf
+                                    <button type="submit" style="background: #10b981; color: white; border: none; padding: 0.45rem 0.85rem; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.8rem;">Pulihkan</button>
+                                </form>
+                                <form action="{{ route('manajemen-data.force-delete', $item->batch_id) }}" method="POST" onsubmit="return confirm('PERINGATAN: Apakah Anda yakin ingin menghapus dokumen ini secara PERMANEN? Data dan seluruh transaksi terkait akan dihapus selamanya!');" style="margin: 0;">
+                                    @csrf
+                                    <button type="submit" style="background: #ef4444; color: white; border: none; padding: 0.45rem 0.85rem; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.8rem;">Hapus Permanen</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+        <div style="margin-top: 1.5rem; text-align: right;">
+            <button type="button" onclick="closeTrashModal()" style="padding: 0.6rem 1.4rem; border: 1px solid #cbd5e1; background: #f1f5f9; color: #475569; border-radius: 8px; font-weight: 600; cursor: pointer;">Tutup</button>
         </div>
     </div>
 </div>
@@ -293,5 +389,113 @@
             });
         }
     }
+
+    // Modal Edit Dokumen
+    function openEditModal(batchId, namaFile, jenisData, status) {
+        document.getElementById('form-edit-batch').action = `/manajemen-data/${batchId}/update`;
+        document.getElementById('edit_nama_file').value = namaFile;
+        document.getElementById('edit_jenis_data').value = jenisData;
+        const isPublic = (status === 'RILIS' || status === 'Public');
+        const statusLabel = isPublic ? 'Public' : 'Pending';
+        const statusColor = isPublic ? '#10b981' : '#f59e0b';
+        document.getElementById('edit_status_info').innerHTML = `<span style="color: ${statusColor};">${statusLabel}</span>`;
+        document.getElementById('modal-edit').style.display = 'flex';
+    }
+
+    function closeEditModal() {
+        document.getElementById('modal-edit').style.display = 'none';
+    }
+
+    // Modal Trash
+    function openTrashModal() {
+        document.getElementById('modal-trash').style.display = 'flex';
+    }
+
+    function closeTrashModal() {
+        document.getElementById('modal-trash').style.display = 'none';
+    }
+
+    // Fungsi Download Ekspor Non-blocking (Indikator loading hanya pada tombol dan tidak mengunci halaman)
+    async function downloadExport(batchId, btnElement) {
+        if (!btnElement || btnElement.disabled) return;
+
+        const originalHtml = btnElement.innerHTML;
+        btnElement.disabled = true;
+        btnElement.style.opacity = '0.7';
+        btnElement.style.cursor = 'wait';
+        btnElement.innerHTML = `
+            <span style="display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; color: #2563eb;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation: spin 1s linear infinite;">
+                    <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke-opacity="0.75"></path>
+                </svg>
+                Mengunduh...
+            </span>
+        `;
+
+        try {
+            const exportUrl = `/manajemen-data/${batchId}/export`;
+            const response = await fetch(exportUrl, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (!response.ok) {
+                let errText = 'Gagal mengunduh file ekspor (Status: ' + response.status + ').';
+                try {
+                    const errJson = await response.json();
+                    if (errJson.message) errText = errJson.message;
+                } catch(e) {}
+                alert(errText);
+                return;
+            }
+
+            // Dapatkan nama file dari header Content-Disposition jika ada
+            const disposition = response.headers.get('content-disposition');
+            let filename = `SIDATEX_Ekspor_Batch_${batchId}.xlsx`;
+            if (disposition && disposition.indexOf('filename=') !== -1) {
+                const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disposition);
+                if (matches != null && matches[1]) {
+                    filename = matches[1].replace(/['"]/g, '');
+                }
+            }
+
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = downloadUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(downloadUrl);
+
+            // Beri tanda sukses sejenak
+            btnElement.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ Selesai</span>`;
+            setTimeout(() => {
+                btnElement.innerHTML = originalHtml;
+                btnElement.disabled = false;
+                btnElement.style.opacity = '1';
+                btnElement.style.cursor = 'pointer';
+            }, 2000);
+
+        } catch (err) {
+            console.error('Error saat download file ekspor:', err);
+            alert('Terjadi kesalahan jaringan atau server saat mengunduh data: ' + err.message);
+            btnElement.innerHTML = originalHtml;
+            btnElement.disabled = false;
+            btnElement.style.opacity = '1';
+            btnElement.style.cursor = 'pointer';
+        }
+    }
 </script>
+<style>
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
 @endpush
