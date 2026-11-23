@@ -6,7 +6,6 @@
 <style>
     .analisis-wrapper {
         min-height: calc(100vh - 80px);
-        padding: 1.25rem 1.5rem;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
     .page-heading {
