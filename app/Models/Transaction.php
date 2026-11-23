@@ -7,8 +7,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Transaction extends Model
 {
-    // Nama tabel yang digunakan model.
-    protected $table = 'transactions';
+    // Mengalihkan secara aman ke tabel fisik distribusi_transactions
+    // sambil mempertahankan kompatibilitas kode lama
+    protected $table = 'distribusi_transactions';
 
     // Primary key tabel transaksi.
     protected $primaryKey = 'transaction_id';

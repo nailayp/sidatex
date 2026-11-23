@@ -21,11 +21,15 @@ return new class extends Migration
             $table->decimal('ukuran_file', 8, 2)->nullable();
 
             // Status menentukan apakah data boleh ditampilkan kepada pengguna.
-            $table->enum('status', [
-                'DRAFT',
-                'NON-RILIS',
-                'RILIS',
-            ])->default('DRAFT');
+            if (\Illuminate\Support\Facades\DB::getDriverName() === 'sqlite') {
+                $table->string('status', 20)->default('DRAFT');
+            } else {
+                $table->enum('status', [
+                    'DRAFT',
+                    'NON-RILIS',
+                    'RILIS',
+                ])->default('DRAFT');
+            }
 
             // Pengguna yang mengunggah file.
             $table->unsignedBigInteger('uploaded_by');

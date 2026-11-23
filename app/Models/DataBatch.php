@@ -43,7 +43,23 @@ class DataBatch extends Model
     }
 
     /**
-     * Satu batch dapat memiliki banyak transaksi.
+     * Relasi ke transaksi Distribusi fisik (distribusi_transactions).
+     */
+    public function distribusiTransactions(): HasMany
+    {
+        return $this->hasMany(DistribusiTransaction::class, 'batch_id', 'batch_id');
+    }
+
+    /**
+     * Relasi ke transaksi Neraca fisik (neraca_transactions).
+     */
+    public function neracaTransactions(): HasMany
+    {
+        return $this->hasMany(NeracaTransaction::class, 'batch_id', 'batch_id');
+    }
+
+    /**
+     * Satu batch dapat memiliki banyak transaksi (mengarah ke DistribusiTransaction via Transaction model).
      */
     public function transactions(): HasMany
     {

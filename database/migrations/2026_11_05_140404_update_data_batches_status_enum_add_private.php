@@ -11,7 +11,9 @@ return new class extends Migration
     public function up(): void
     {
         // Ubah enum kolom status pada data_batches agar mencakup 'DRAFT', 'PRIVATE', 'NON-RILIS', 'RILIS'
-        DB::statement("ALTER TABLE `data_batches` MODIFY COLUMN `status` ENUM('DRAFT', 'PRIVATE', 'NON-RILIS', 'RILIS') NOT NULL DEFAULT 'DRAFT'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE `data_batches` MODIFY COLUMN `status` ENUM('DRAFT', 'PRIVATE', 'NON-RILIS', 'RILIS') NOT NULL DEFAULT 'DRAFT'");
+        }
     }
 
     /**
@@ -19,6 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::statement("ALTER TABLE `data_batches` MODIFY COLUMN `status` ENUM('DRAFT', 'NON-RILIS', 'RILIS') NOT NULL DEFAULT 'DRAFT'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE `data_batches` MODIFY COLUMN `status` ENUM('DRAFT', 'NON-RILIS', 'RILIS') NOT NULL DEFAULT 'DRAFT'");
+        }
     }
 };
