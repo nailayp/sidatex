@@ -1,8 +1,8 @@
 *.log
 .DS_Store
 .env
-.env.backup
-.env.production
+.env.*
+!.env.example
 .phpactor.json
 .phpunit.result.cache
 /.codex
@@ -19,6 +19,11 @@
 /public/hot
 /public/storage
 /storage/*.key
+/storage/backups/
+/storage/*.sql
+*.sql
+*.sqlite*
+/storage/app/temp_staging/
 /storage/pail
 /vendor
 _ide_helper.php
@@ -29,4 +34,11 @@ Thumbs.db
 /.mcp.json
 /boost.json
 # Cadangan instruksi coding lokal
-/CLAUDE.local-backup.md
+CLAUDE.local-backup.md
+*.local-backup.md
+/referensi_bps/
+*.DBF
+*.dbf
+*.xlsx
+*.xls
+/scratch_check.txt
