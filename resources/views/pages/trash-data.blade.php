@@ -1,239 +1,296 @@
 @extends('layouts.app')
 
-@section('title', 'Sampah / Trash Dokumen | SIDATEX BPS Provinsi Riau')
+@section('title', 'Sampah Data | SIDATEX BPS Provinsi Riau')
 
 @push('styles')
 <style>
-    /* Styling Selaras dengan Manajemen Data */
-    .trash-wrapper {
-        min-height: calc(100vh - 80px);
-        padding: 1.5rem 2rem;
-        position: relative;
+    .trash-container {
+        min-height: calc(100vh - 120px);
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
 
-    .trash-header-container {
+    .trash-header-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1.25rem 1.75rem;
+        margin-bottom: 1.5rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        background: #ffffff;
-        padding: 1.25rem 2rem;
-        border-radius: 12px;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
-    .trash-header-left {
-        display: flex;
-        align-items: center;
-        gap: 1.25rem;
-    }
-
-    .trash-header-left h1 {
-        font-size: 1.6rem;
-        font-weight: 700;
-        color: #1e293b;
-        margin: 0;
-        border-left: 3px solid #ef4444;
-        padding-left: 1.25rem;
-    }
-
-    .trash-table-container {
-        background: #ffffff;
-        border-radius: 16px;
-        padding: 1.75rem;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.04);
-        border: 1px solid #e2e8f0;
-    }
-
-    .trash-custom-table {
-        width: 100%;
-        border-collapse: separate;
-        border-spacing: 0 10px;
-    }
-
-    .trash-custom-table th {
-        text-align: left;
-        padding: 0 1rem 0.85rem 1rem;
-        color: #475569;
-        font-weight: 700;
-        font-size: 0.95rem;
-        border-bottom: 2px solid #e2e8f0;
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-    }
-
-    .trash-custom-table td {
-        background: #f8fafc;
-        padding: 1rem 1.2rem;
-        vertical-align: middle;
-        font-size: 0.9rem;
-        border-top: 1px solid #f1f5f9;
-        border-bottom: 1px solid #f1f5f9;
-    }
-
-    .trash-custom-table td:first-child {
-        border-top-left-radius: 10px;
-        border-bottom-left-radius: 10px;
-        border-left: 1px solid #f1f5f9;
-    }
-
-    .trash-custom-table td:last-child {
-        border-top-right-radius: 10px;
-        border-bottom-right-radius: 10px;
-        border-right: 1px solid #f1f5f9;
-    }
-
-    .trash-custom-table tbody tr {
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    .trash-custom-table tbody tr:hover td {
-        background: #ffffff;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    }
-
-    .trash-doc-info {
+    .trash-header-title-box {
         display: flex;
         align-items: center;
         gap: 1rem;
     }
 
-    .trash-excel-logo {
-        width: 38px;
-        height: 38px;
-        flex-shrink: 0;
+    .trash-icon-badge {
+        width: 44px;
+        height: 44px;
+        background: #fee2e2;
+        color: #ef4444;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
     }
 
-    .trash-doc-text h4 {
-        margin: 0;
-        font-size: 1rem;
+    .trash-header-title-box h1 {
+        font-size: 1.4rem;
         font-weight: 700;
-        color: #1e293b;
+        color: #0f172a;
+        margin: 0;
     }
 
-    .trash-doc-text p {
-        margin: 3px 0 0 0;
-        font-size: 0.8rem;
+    .trash-header-title-box p {
+        margin: 0.2rem 0 0;
         color: #64748b;
-    }
-
-    .trash-date-time {
-        line-height: 1.35;
-    }
-
-    .trash-date-time .date {
-        font-weight: 600;
-        color: #334155;
-    }
-
-    .trash-date-time .time {
-        font-size: 0.8rem;
-        color: #64748b;
-    }
-
-    .btn-table-action {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 14px;
-        border-radius: 7px;
-        font-size: 0.82rem;
-        font-weight: 600;
-        cursor: pointer;
-        text-decoration: none;
-        border: none;
-        transition: all 0.15s ease;
-    }
-
-    .btn-restore {
-        background: #10b981;
-        color: white;
-    }
-    .btn-restore:hover {
-        background: #059669;
-    }
-
-    .btn-permanent-delete {
-        background: #ef4444;
-        color: white;
-    }
-    .btn-permanent-delete:hover {
-        background: #dc2626;
-    }
-
-    .btn-back {
-        background: #f1f5f9;
-        border: 1px solid #cbd5e1;
-        color: #475569;
-        padding: 0.55rem 1.1rem;
-        border-radius: 8px;
-        font-weight: 600;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
         font-size: 0.85rem;
     }
-    .btn-back:hover {
-        background: #e2e8f0;
+
+    .btn-bps-outline {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #ffffff;
+        border: 1.5px solid #cbd5e1;
+        color: #334155;
+        padding: 0.6rem 1.2rem;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+
+    .btn-bps-outline:hover {
+        background: #f8fafc;
+        border-color: #94a3b8;
+        color: #0f172a;
+    }
+
+    .trash-table-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+
+    .trash-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+    }
+
+    .trash-table th {
+        background: #f8fafc;
+        color: #475569;
+        font-weight: 700;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .trash-table td {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #f1f5f9;
+        color: #334155;
+        font-size: 0.9rem;
+        vertical-align: middle;
+    }
+
+    .trash-table tr:hover td {
+        background: #f8fafc;
+    }
+
+    .trash-doc-title {
+        font-weight: 600;
+        color: #0f172a;
+        margin-bottom: 0.2rem;
+    }
+
+    .trash-doc-sub {
+        font-size: 0.8rem;
+        color: #64748b;
+    }
+
+    .badge-status-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.65rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+
+    .badge-status-public {
+        background: #ecfdf5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
+    }
+
+    .badge-status-private {
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #cbd5e1;
+    }
+
+    .btn-action-restore {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: #0284c7;
+        color: #ffffff;
+        border: none;
+        padding: 0.45rem 0.85rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .btn-action-restore:hover {
+        background: #0369a1;
+    }
+
+    .btn-action-delete {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+        padding: 0.45rem 0.85rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-action-delete:hover {
+        background: #ef4444;
+        color: #ffffff;
+        border-color: #ef4444;
+    }
+
+    /* Modal Konfirmasi */
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+        backdrop-filter: blur(4px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+
+    .modal-content-card {
+        background: #ffffff;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 480px;
+        padding: 1.75rem;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
     }
 </style>
 @endpush
 
 @section('content')
-<div class="trash-wrapper">
+<div class="trash-container">
 
-    <!-- Flash Alert -->
     @if(session('success'))
-        <div style="background: #10b981; color: white; padding: 0.85rem 1.25rem; border-radius: 8px; margin-bottom: 1.25rem; font-weight: 600; font-size: 0.9rem;">
+        <div style="background: #ecfdf5; border-left: 4px solid #10b981; color: #065f46; padding: 1rem 1.25rem; border-radius: 8px; margin-bottom: 1.25rem; font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
             {{ session('success') }}
         </div>
     @endif
 
     @if(session('error'))
-        <div style="background: #ef4444; color: white; padding: 0.85rem 1.25rem; border-radius: 8px; margin-bottom: 1.25rem; font-weight: 600; font-size: 0.9rem;">
+        <div style="background: #fef2f2; border-left: 4px solid #ef4444; color: #991b1b; padding: 1rem 1.25rem; border-radius: 8px; margin-bottom: 1.25rem; font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
             {{ session('error') }}
         </div>
     @endif
 
-    <!-- Header Judul -->
-    <div class="trash-header-container">
-        <div class="trash-header-left">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
+    <div class="trash-header-card">
+        <div class="trash-header-title-box">
+            <div class="trash-icon-badge">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+            </div>
             <div>
-                <h1>Trash / Sampah Dokumen</h1>
-                <p style="margin: 3px 0 0 1.25rem; color: #64748b; font-size: 0.85rem;">Dokumen yang dihapus sementara dapat dipulihkan atau dihapus permanen.</p>
+                <h1>Sampah Data Dokumen</h1>
+                <p>Dokumen batch yang dihapus sementara dapat dipulihkan kembali ke Manajemen Data atau dihapus permanen.</p>
             </div>
         </div>
         <div>
-            <a href="{{ route('manajemen-data') }}" class="btn-back">
-                &larr; Kembali ke Manajemen Data
+            <a href="{{ route('manajemen-data') }}" class="btn-bps-outline">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+                Kembali ke Manajemen Data
             </a>
         </div>
     </div>
 
-    <!-- Tabel Daftar Trash -->
-    <div class="trash-table-container">
+    <!-- Filter & Kontrol Halaman Trash -->
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem 1.5rem; margin-bottom: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <form method="GET" action="{{ route('trash-data') }}" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px;">
+                <label for="q" style="display: block; font-size: 0.78rem; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 0.35rem;">Pencarian Trash</label>
+                <input type="text" id="q" name="q" value="{{ request('q') }}" placeholder="Ketik nama berkas, nomor batch..." style="width: 100%; padding: 0.55rem 0.85rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.88rem; box-sizing: border-box;">
+            </div>
+            <div style="width: 150px;">
+                <label for="per_page" style="display: block; font-size: 0.78rem; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 0.35rem;">Data per Halaman</label>
+                <select id="per_page" name="per_page" style="width: 100%; padding: 0.55rem 0.85rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.88rem; background: #fff; box-sizing: border-box;">
+                    <option value="10" {{ request('per_page', 10) == 10 ? 'selected' : '' }}>10 data</option>
+                    <option value="25" {{ request('per_page') == 25 ? 'selected' : '' }}>25 data</option>
+                    <option value="50" {{ request('per_page') == 50 ? 'selected' : '' }}>50 data</option>
+                    <option value="100" {{ request('per_page') == 100 ? 'selected' : '' }}>100 data</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                <a href="{{ route('trash-data') }}" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0 1rem; height: 38px; min-height: 38px; background: #ffffff; color: #475569; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.85rem; font-weight: 600; text-decoration: none;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                    Reset Filter
+                </a>
+                <button type="submit" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0 1.25rem; height: 38px; min-height: 38px; background: #0066cc; color: #ffffff; border: 1px solid #0052a3; border-radius: 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer; box-shadow: 0 1px 2px rgba(0, 102, 204, 0.2);">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    Terapkan Filter
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="trash-table-card">
         @if($totalTrash === 0)
-            <div style="text-align: center; padding: 3.5rem 1rem; color: #64748b;">
-                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" style="margin-bottom: 1rem;">
+            <div style="text-align: center; padding: 4rem 1.5rem; color: #64748b;">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" style="margin-bottom: 1rem;">
                     <polyline points="3 6 5 6 21 6"></polyline>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                 </svg>
-                <h3 style="margin: 0; font-size: 1.15rem; color: #334155; font-weight: 700;">Trash Kosong</h3>
-                <p style="margin: 0.5rem 0 0; font-size: 0.85rem;">Tidak ada dokumen batch yang sedang berada di tempat sampah.</p>
+                <h3 style="margin: 0; font-size: 1.15rem; color: #1e293b; font-weight: 700;">Trash Kosong</h3>
+                <p style="margin: 0.4rem 0 0; font-size: 0.875rem;">Tidak ada dokumen batch data yang sedang berada di tempat sampah.</p>
             </div>
         @else
-            <table class="trash-custom-table">
+            <table class="trash-table">
                 <thead>
                     <tr>
-                        <th style="width: 40px; text-align: center;">No</th>
-                        <th>Nama Dokumen / Data</th>
+                        <th style="width: 50px; text-align: center;">No</th>
+                        <th>Nama Dokumen / Batch</th>
                         <th>Dihapus Oleh</th>
                         <th>Waktu Penghapusan</th>
                         <th>Ukuran</th>
@@ -244,52 +301,42 @@
                 <tbody>
                     @foreach($trashedItems as $idx => $item)
                     <tr>
-                        <td style="text-align: center; font-weight: 700; color: #64748b;">{{ $idx + 1 }}</td>
+                        <td style="text-align: center; font-weight: 600; color: #64748b;">{{ $trashedItems->firstItem() + $idx }}</td>
                         <td>
-                            <div class="trash-doc-info">
-                                <svg class="trash-excel-logo" viewBox="0 0 24 24" fill="none">
-                                    <rect width="24" height="24" rx="4" fill="#64748b"/>
-                                    <path d="M15.5 17H13.5L12 12.5L10.5 17H8.5L11 11L8.5 5H10.5L12 9.5L13.5 5H15.5L13 11L15.5 17Z" fill="white"/>
-                                </svg>
-                                <div class="trash-doc-text">
-                                    <h4>{{ $item->nama_file }}</h4>
-                                    <p>{{ $item->jenis_data ?? 'Spreadsheet' }} &bull; Di-soft delete</p>
-                                </div>
-                            </div>
+                            <div class="trash-doc-title">{{ $item->nama_file }}</div>
+                            <div class="trash-doc-sub">{{ $item->jenis_data ?? 'Batch' }} &bull; Batch #{{ $item->batch_id }}</div>
                         </td>
-                        <td style="color: #334155; font-weight: 600;">
+                        <td style="font-weight: 600; color: #334155;">
                             {{ $item->deleter_name ?? 'Super Admin' }}
                         </td>
                         <td>
-                            <div class="trash-date-time">
-                                <div class="date">{{ \Carbon\Carbon::parse($item->deleted_at)->format('d F Y') }}</div>
-                                <div class="time">{{ \Carbon\Carbon::parse($item->deleted_at)->format('H:i') }} WIB</div>
-                            </div>
+                            <div style="font-weight: 600; color: #334155;">{{ \Carbon\Carbon::parse($item->deleted_at)->format('d F Y') }}</div>
+                            <div style="font-size: 0.8rem; color: #64748b;">{{ \Carbon\Carbon::parse($item->deleted_at)->format('H:i') }} WIB</div>
                         </td>
-                        <td style="color: #475569; font-weight: 600;">
+                        <td style="font-weight: 600; color: #475569;">
                             {{ $item->ukuran_file ?? 0 }} MB
                         </td>
                         <td>
                             @if($item->batch_status === 'RILIS')
-                                <span style="background: #dcfce7; color: #15803d; padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 0.78rem;">Public</span>
+                                <span class="badge-status-pill badge-status-public">Public</span>
                             @else
-                                <span style="background: #fef9c3; color: #a16207; padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 0.78rem;">Pending</span>
+                                <span class="badge-status-pill badge-status-private">Private</span>
                             @endif
                         </td>
                         <td style="text-align: center;">
                             <div style="display: inline-flex; gap: 8px;">
                                 <form action="{{ route('manajemen-data.restore', $item->batch_id) }}" method="POST" onsubmit="return confirm('Pulihkan dokumen \'{{ addslashes($item->nama_file) }}\' kembali ke Manajemen Data?');" style="margin: 0;">
                                     @csrf
-                                    <button type="submit" class="btn-table-action btn-restore">
+                                    <button type="submit" class="btn-action-restore">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
                                         Pulihkan
                                     </button>
                                 </form>
-                                <form action="{{ route('manajemen-data.force-delete', $item->batch_id) }}" method="POST" onsubmit="return confirm('PERINGATAN: Apakah Anda yakin ingin menghapus permanen \'{{ addslashes($item->nama_file) }}\'? Seluruh data transaksi terkait akan dihapus selamanya!');" style="margin: 0;">
+                                <form action="{{ route('manajemen-data.force-delete', $item->batch_id) }}" method="POST" onsubmit="return confirm('PERINGATAN PERMANEN:\nApakah Anda yakin ingin menghapus permanen \'{{ addslashes($item->nama_file) }}\'?\nSeluruh data transaksi terkait di database akan dihapus selamanya!');" style="margin: 0;">
                                     @csrf
-                                    <button type="submit" class="btn-table-action btn-permanent-delete">
+                                    <button type="submit" class="btn-action-delete">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                                        Hapus
+                                        Hapus Permanen
                                     </button>
                                 </form>
                             </div>
@@ -298,6 +345,16 @@
                     @endforeach
                 </tbody>
             </table>
+
+            <!-- Pagination Bernomor SiPantau Style -->
+            <div style="padding: 1rem 1.5rem; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div style="font-size: 0.85rem; color: #64748b;">
+                    Menampilkan data <strong>{{ $trashedItems->firstItem() ?? 0 }}</strong> &ndash; <strong>{{ $trashedItems->lastItem() ?? 0 }}</strong> dari total <strong>{{ $trashedItems->total() }}</strong> sampah dokumen
+                </div>
+                <div>
+                    {{ $trashedItems->links('partials.pagination') }}
+                </div>
+            </div>
         @endif
     </div>
 </div>
