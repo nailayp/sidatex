@@ -328,7 +328,7 @@ class ExcelTransactionParser
 
             // Bulk insert setiap 1000 baris
             if (count($chunk) >= 1000) {
-                DB::table('transactions')->insert($chunk);
+                DB::table('distribusi_transactions')->insert($chunk);
                 $totalInserted += count($chunk);
                 $chunk = [];
             }
@@ -336,7 +336,7 @@ class ExcelTransactionParser
 
         // Insert sisa baris
         if (!empty($chunk)) {
-            DB::table('transactions')->insert($chunk);
+            DB::table('distribusi_transactions')->insert($chunk);
             $totalInserted += count($chunk);
             $chunk = [];
         }
