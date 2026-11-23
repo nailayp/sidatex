@@ -24,23 +24,29 @@ class PowerPointExportService
         }
 
         $jenis = $batch->jenis_data ?? 'Ekspor';
+        $tipeSumber = strtolower(trim((string) ($batch->tipe_sumber ?? 'distribusi')));
+        $txTable = ($tipeSumber === 'neraca') ? 'neraca_transactions' : 'distribusi_transactions';
+        $isImpor = strtolower(trim((string) $jenis)) === 'impor';
+        $nilaiLabel = $isImpor ? 'TOTAL NILAI CIF' : 'TOTAL NILAI FOB';
 
-        // Ambil transaksi agregat
-        $transaksi = DB::table('transactions')
+        // Ambil transaksi agregat dari tabel transaksi sesuai metodologi batch
+        $transaksi = DB::table($txTable)
             ->where('batch_id', $batchId)
             ->select(
                 DB::raw('COUNT(*) as total_transaksi'),
-                DB::raw('SUM(nilai) as total_fob'),
-                DB::raw('SUM(berat) as total_netto'),
+                DB::raw('COALESCE(SUM(nilai), 0) as total_fob'),
+                DB::raw('COALESCE(SUM(berat), 0) as total_netto'),
                 DB::raw('MIN(bulan) as min_bulan'),
                 DB::raw('MAX(bulan) as max_bulan'),
                 DB::raw('MIN(tahun) as tahun')
             )
             ->first();
 
-        $totalFobJuta = round(($transaksi->total_fob ?? 0) / 1000000, 2);
-        $totalNettoRibuTon = round(($transaksi->total_netto ?? 0) / 1000000, 2);
-        $tahun = $transaksi->tahun ?? date('Y');
+        $totalNilaiStr = bcadd((string) ($transaksi->total_fob ?? '0'), '0', 6);
+        $totalNettoStr = bcadd((string) ($transaksi->total_netto ?? '0'), '0', 6);
+        $totalFobJuta = round((float) bcdiv($totalNilaiStr, '1000000', 6), 2);
+        $totalNettoRibuTon = round((float) bcdiv($totalNettoStr, '1000000', 6), 2);
+        $tahun = $transaksi->tahun ?? $batch->periode_tahun ?? date('Y');
 
         $objPHPPowerPoint = new PhpPresentation();
 
@@ -68,7 +74,16 @@ class PowerPointExportService
             ->setOffsetX(50)
             ->setOffsetY(200);
 
-        $subRun = $subShape->createTextRun("Perkembangan {$jenis} Provinsi Riau\nTahun {$tahun}\nDokumen: {$batch->nama_file}");
+        $scopeLabel = ($tipeSumber === 'neraca')
+            ? 'Metodologi Neraca (PROVORIG / KPPBC Riau)'
+            : 'Metodologi Distribusi (Pelabuhan Muat / Bongkar Riau)';
+        $minBulan = $transaksi->min_bulan ?? $batch->periode_bulan;
+        $maxBulan = $transaksi->max_bulan ?? $batch->periode_bulan;
+        $periodeLabel = ($minBulan && $maxBulan && $minBulan !== $maxBulan)
+            ? "Bulan {$minBulan}–{$maxBulan} Tahun {$tahun}"
+            : ($minBulan ? "Bulan {$minBulan} Tahun {$tahun}" : "Tahun {$tahun}");
+
+        $subRun = $subShape->createTextRun("Perkembangan {$jenis} Provinsi Riau\n{$scopeLabel}\nPeriode: {$periodeLabel}\nDokumen: {$batch->nama_file}");
         $subRun->getFont()->setSize(20)->setColor(new Color('FF475569'));
 
         // -------------------------------------------------------------
@@ -84,13 +99,13 @@ class PowerPointExportService
         $titleRun = $titleShape->createTextRun("Ringkasan Statistik {$jenis} Provinsi Riau");
         $titleRun->getFont()->setBold(true)->setSize(22)->setColor(new Color('FF1E3A8A'));
 
-        // Kotak Metrik 1: Total Nilai FOB
+        // Kotak Metrik 1: Total Nilai FOB/CIF
         $boxFob = $slide2->createRichTextShape()
             ->setHeight(180)
             ->setWidth(380)
             ->setOffsetX(50)
             ->setOffsetY(130);
-        $boxFobRun = $boxFob->createTextRun("TOTAL NILAI FOB\n\nUS$ {$totalFobJuta} Juta\n\nTotal Transaksi: " . number_format($transaksi->total_transaksi ?? 0, 0, ',', '.'));
+        $boxFobRun = $boxFob->createTextRun("{$nilaiLabel}\n\nUS$ {$totalFobJuta} Juta\n\nTotal Transaksi: " . number_format($transaksi->total_transaksi ?? 0, 0, ',', '.'));
         $boxFobRun->getFont()->setBold(true)->setSize(18)->setColor(new Color('FF0284C7'));
 
         // Kotak Metrik 2: Total Berat Netto

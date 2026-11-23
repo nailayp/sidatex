@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -14,6 +15,13 @@ class UploadController extends Controller
 {
     public function index()
     {
+        $currentUser = Auth::user();
+        $isSuperAdmin = $currentUser && ($currentUser->role_id === 1 || ($currentUser->role && $currentUser->role->nama_role === 'Super Admin'));
+
+        if (!$isSuperAdmin) {
+            abort(403, 'Akses ditolak. Fitur Upload Data hanya dapat diakses oleh Super Admin.');
+        }
+
         // Mengambil semua data dari tabel master menggunakan DB Facade
         $provinsis = DB::table('master_provinsi')->orderBy('nama_provinsi', 'asc')->get();
         $kabkotas = DB::table('master_kabkota')->orderBy('nama_kabkota', 'asc')->get();
@@ -31,26 +39,139 @@ class UploadController extends Controller
 
     public function store(Request $request)
     {
-        // 1. Validasi Input (Pastikan file yang diunggah benar-benar Excel)
+        $currentUser = Auth::user();
+        $isSuperAdmin = $currentUser && ($currentUser->role_id === 1 || ($currentUser->role && $currentUser->role->nama_role === 'Super Admin'));
+
+        if (!$isSuperAdmin) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Akses ditolak. Pengunggahan data hanya dapat dilakukan oleh Super Admin.'], 403);
+            }
+            abort(403, 'Akses ditolak. Pengunggahan data hanya dapat dilakukan oleh Super Admin.');
+        }
+
+        $file = $request->file('excel_file_final');
+        $originalName = $file ? $file->getClientOriginalName() : '';
+        $ext = $file ? strtolower($file->getClientOriginalExtension()) : '';
+        if (!$ext && $originalName) {
+            $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        }
+
+        // Jika ekstensi tidak terbaca (misal di Windows), cek byte header DBF langsung (0x03)
+        $isDbf = ($ext === 'dbf');
+        if (!$isDbf && $file && file_exists($file->getRealPath())) {
+            $fp = @fopen($file->getRealPath(), 'rb');
+            if ($fp) {
+                $firstByte = ord(fread($fp, 1));
+                fclose($fp);
+                if (in_array($firstByte, [0x03, 0x83, 0x8B])) {
+                    $isDbf = true;
+                }
+            }
+        }
+
+        // JIKA BERKAS ADALAH RAW DBF (DISTRIBUSI / NERACA)
+        if ($isDbf) {
+            $request->validate([
+                'excel_file_final' => 'required|file|max:51200',
+                'jenis_data_final' => 'required|string',
+                'sumber_data_final' => 'nullable|string',
+            ], [
+                'excel_file_final.required' => 'File DBF wajib dipilih sebelum menyimpan.',
+                'excel_file_final.max' => 'Ukuran file tidak boleh melebihi 50 MB.',
+                'jenis_data_final.required' => 'Jenis data (Ekspor/Impor) wajib ditentukan.',
+            ]);
+
+            $namaFile = $file->getClientOriginalName();
+            $jenis = strtolower($request->input('jenis_data_final'));
+            $sumber = strtolower($request->input('sumber_data_final', 'distribusi'));
+            if (!$sumber) {
+                $sumber = 'distribusi';
+            }
+
+            $statusInput = strtoupper(trim((string) $request->input('status_final', 'PRIVATE')));
+            $currentUser = Auth::user();
+            $isAuthorizedToRelease = $currentUser && ($currentUser->role_id === 1 || ($currentUser->role && $currentUser->role->nama_role === 'Super Admin'));
+
+            // Status default simpan: PRIVATE (tidak langsung RILIS kecuali dipilih Super Admin)
+            if (($statusInput === 'RILIS' || $statusInput === 'PUBLIC') && $isAuthorizedToRelease) {
+                $statusDb = 'RILIS';
+            } else {
+                $statusDb = 'PRIVATE';
+            }
+
+            try {
+                $brsService = app(\App\Services\BrsDataProcessingService::class);
+                $result = $brsService->storeBatchAndTransactions(
+                    $file->getRealPath(),
+                    $namaFile,
+                    $sumber,
+                    $jenis,
+                    Auth::id() ?? 1,
+                    $statusDb
+                );
+
+                $pesanSukses = "File {$namaFile} (" . round($file->getSize() / 1048576, 2) . " MB) berhasil diproses dan disimpan ke basis data (Batch #{$result['batch_id']}) dengan status {$statusDb}. Agregasi Mart BRS selesai.";
+
+                if ($request->expectsJson() || $request->ajax()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => $pesanSukses,
+                        'data' => [
+                            'batch_id' => $result['batch_id'],
+                            'nama_file' => $namaFile,
+                            'sumber_data' => $sumber,
+                            'status' => $statusDb,
+                            'total_transactions' => $result['total_baris'] ?? 0,
+                            'total_nilai_juta_usd' => $result['total_nilai_juta_usd'] ?? 0,
+                            'total_berat_ribu_ton' => $result['total_berat_ribu_ton'] ?? 0,
+                            'migas_juta_usd' => $result['migas_juta_usd'] ?? 0,
+                            'non_migas_juta_usd' => $result['non_migas_juta_usd'] ?? 0,
+                            'unmapped_count' => $result['unmapped_count'] ?? 0,
+                            'aggregation' => $result['aggregation'] ?? null,
+                        ],
+                        'redirect_url' => route('manajemen-data'),
+                    ]);
+                }
+
+                return redirect()->route('manajemen-data')->with('success', $pesanSukses);
+            } catch (\Throwable $e) {
+                logger()->error('Gagal memproses batch DBF BRS: ' . $e->getMessage());
+
+                if ($request->expectsJson() || $request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Gagal memproses berkas DBF: ' . $e->getMessage(),
+                    ], 422);
+                }
+
+                return redirect()->back()->withInput()->with('error', 'Gagal memproses berkas DBF: ' . $e->getMessage());
+            }
+        }
+
+        // 1. Validasi Input (Pastikan file yang diunggah benar-benar Excel dengan MIME & ekstensi valid)
         $validated = $request->validate([
-            'excel_file_final' => 'required|file|extensions:xlsx,xls|max:51200', // max 50MB
+            'excel_file_final' => 'required|file|extensions:xlsx,xls|mimes:xlsx,xls|max:51200', // max 50MB
             'jenis_data_final' => 'required|string',
         ], [
             'excel_file_final.required' => 'File Excel wajib dipilih sebelum menyimpan.',
             'excel_file_final.file' => 'Unggahan harus berupa file yang valid.',
             'excel_file_final.extensions' => 'File harus berekstensi .xlsx atau .xls.',
+            'excel_file_final.mimes' => 'Format konten file harus berupa dokumen Excel (.xlsx atau .xls) yang valid.',
             'excel_file_final.max' => 'Ukuran file tidak boleh melebihi 50 MB.',
             'jenis_data_final.required' => 'Jenis data (Ekspor/Impor) wajib ditentukan.',
         ]);
 
         $file = $request->file('excel_file_final');
-        $namaFile = $file->getClientOriginalName();
+        $rawOriginalName = basename((string) $file->getClientOriginalName());
+        $safeOriginalName = preg_replace('/[^a-zA-Z0-9._\-\s()]/', '_', $rawOriginalName) ?: 'upload.xlsx';
+        $safeOriginalName = str_replace('..', '_', $safeOriginalName);
+        $storedFilename = time() . '_' . $safeOriginalName;
         $ukuranMB = round($file->getSize() / 1048576, 2);
 
         // Petakan status_final ke ENUM database ('DRAFT', 'PRIVATE', 'NON-RILIS', 'RILIS')
         $statusInput = strtoupper(trim((string) $request->input('status_final', 'PRIVATE')));
         $currentUser = Auth::user();
-        $isAuthorizedToRelease = $currentUser && ($currentUser->role_id === 1 || ($currentUser->role && $currentUser->role->nama_role === 'Super Admin'));
+        $isAuthorizedToRelease = $currentUser && ((int) $currentUser->role_id === 1 || ($currentUser->role && $currentUser->role->nama_role === 'Super Admin'));
 
         // Jika user memilih 'RILIS' dan berwenang, maka status 'RILIS'
         if ($statusInput === 'RILIS' && $isAuthorizedToRelease) {
@@ -68,16 +189,16 @@ class UploadController extends Controller
             $releasedAt = null;
         }
 
-        // Simpan file fisik sementara/permanen ke folder storage
-        $storedPath = $file->storeAs('uploads/excel', time() . '_' . $namaFile, 'public');
-        $fullPath = storage_path('app/public/' . $storedPath);
+        // Simpan file fisik secara aman ke disk private ('local' -> storage/app/private)
+        $storedPath = $file->storeAs('uploads/excel', $storedFilename, 'local');
+        $fullPath = Storage::disk('local')->path($storedPath);
 
         // 2. Gunakan Database Transaction agar penyimpanan data_batches dan transactions konsisten
         DB::beginTransaction();
         try {
             // A. Simpan data batch
             $batchId = DB::table('data_batches')->insertGetId([
-                'nama_file' => $namaFile,
+                'nama_file' => $storedFilename,
                 'jenis_data' => $request->jenis_data_final,
                 'ukuran_file' => $ukuranMB,
                 'status' => $statusDb,
@@ -89,7 +210,7 @@ class UploadController extends Controller
                 'updated_at' => now(),
             ]);
 
-            // B. Parse baris Excel dan simpan ke tabel transactions
+            // B. Parse baris Excel dan simpan ke tabel distribusi_transactions
             $parser = new \App\Services\ExcelTransactionParser();
             $totalInserted = $parser->parseAndInsert(
                 $fullPath,
@@ -100,8 +221,8 @@ class UploadController extends Controller
             // C. Commit transaksi jika semua berhasil
             DB::commit();
 
-            $pesanSukses = "File {$namaFile} ({$ukuranMB} MB) berhasil disimpan ke database beserta " . 
-                           number_format($totalInserted, 0, ',', '.') . 
+            $pesanSukses = "File {$safeOriginalName} ({$ukuranMB} MB) berhasil disimpan ke database beserta " .
+                           number_format($totalInserted, 0, ',', '.') .
                            " transaksi dengan status {$statusDb}.";
 
             if ($request->expectsJson() || $request->ajax()) {
@@ -110,7 +231,7 @@ class UploadController extends Controller
                     'message' => $pesanSukses,
                     'data' => [
                         'batch_id' => $batchId,
-                        'nama_file' => $namaFile,
+                        'nama_file' => $storedFilename,
                         'ukuran_file' => $ukuranMB,
                         'status' => $statusDb,
                         'total_transactions' => $totalInserted,
@@ -123,6 +244,11 @@ class UploadController extends Controller
 
         } catch (\Throwable $e) {
             DB::rollBack();
+
+            // Hapus file dari private storage agar tidak meninggalkan berkas orphan saat rollback
+            if (!empty($storedPath) && Storage::disk('local')->exists($storedPath)) {
+                Storage::disk('local')->delete($storedPath);
+            }
 
             logger()->error('Gagal menyimpan batch dan transaksi: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
@@ -141,7 +267,7 @@ class UploadController extends Controller
         }
     }
 
-    public function manajemen()
+    public function manajemen(Request $request)
     {
         // Ambil ID batch yang sedang berada di Trash (belum dipulihkan)
         $trashedBatchIds = DB::table('trash')->whereNull('restored_at')->pluck('batch_id')->toArray();
@@ -174,34 +300,68 @@ class UploadController extends Controller
                             ? round($totalUkuranMB / 1024, 1).' GB'
                             : round($totalUkuranMB, 1).' MB';
 
-        // Ambil data batches aktif beserta jumlah baris transaksi yang berelasi
-        $dokumens = (clone $baseQuery)
-            ->leftJoin('transactions', 'data_batches.batch_id', '=', 'transactions.batch_id')
+        // Query dengan filter pencarian dan status jika diberikan
+        $filteredQuery = clone $baseQuery;
+
+        if ($request->filled('q')) {
+            $keyword = trim($request->q);
+            $filteredQuery->where(function ($q) use ($keyword) {
+                $q->where('data_batches.nama_file', 'like', "%{$keyword}%")
+                  ->orWhere('data_batches.batch_id', 'like', "%{$keyword}%")
+                  ->orWhere('data_batches.jenis_data', 'like', "%{$keyword}%");
+            });
+        }
+
+        if ($request->filled('status') && $request->status !== 'ALL') {
+            $filteredQuery->where('data_batches.status', strtoupper($request->status));
+        }
+
+        $perPage = in_array((int) $request->input('per_page', 10), [10, 25, 50, 100], true)
+            ? (int) $request->input('per_page', 10)
+            : 10;
+
+        // Ambil data batches aktif beserta jumlah baris transaksi yang berelasi (mendukung Distribusi & Neraca)
+        $dokumens = $filteredQuery
+            ->leftJoin('distribusi_transactions', function ($join) {
+                $join->on('data_batches.batch_id', '=', 'distribusi_transactions.batch_id')
+                     ->where('data_batches.tipe_sumber', '=', 'distribusi');
+            })
+            ->leftJoin('neraca_transactions', function ($join) {
+                $join->on('data_batches.batch_id', '=', 'neraca_transactions.batch_id')
+                     ->where('data_batches.tipe_sumber', '=', 'neraca');
+            })
             ->select(
                 'data_batches.*',
-                DB::raw('COUNT(transactions.transaction_id) as total_transaksi')
+                DB::raw('COALESCE(COUNT(distribusi_transactions.transaction_id), 0) + COALESCE(COUNT(neraca_transactions.transaction_id), 0) as total_transaksi')
             )
             ->groupBy('data_batches.batch_id')
             ->orderBy('data_batches.created_at', 'desc')
-            ->paginate(10);
+            ->orderBy('data_batches.batch_id', 'desc')
+            ->paginate($perPage)
+            ->withQueryString();
 
-        // Ambil data Trash untuk modal Trash
-        $trashedItems = DB::table('trash')
-            ->whereNull('trash.restored_at')
-            ->join('data_batches', 'trash.batch_id', '=', 'data_batches.batch_id')
-            ->leftJoin('users as deleter', 'trash.deleted_by', '=', 'deleter.id')
-            ->select(
-                'trash.*',
-                'data_batches.nama_file',
-                'data_batches.jenis_data',
-                'data_batches.ukuran_file',
-                'data_batches.status as batch_status',
-                'deleter.name as deleter_name'
-            )
-            ->orderBy('trash.deleted_at', 'desc')
-            ->get();
+        // Ambil data Trash hanya untuk Super Admin agar metadata Trash tidak bocor ke Pegawai/Viewer
+        if ($isSuperAdmin) {
+            $trashedItems = DB::table('trash')
+                ->whereNull('trash.restored_at')
+                ->join('data_batches', 'trash.batch_id', '=', 'data_batches.batch_id')
+                ->leftJoin('users as deleter', 'trash.deleted_by', '=', 'deleter.id')
+                ->select(
+                    'trash.*',
+                    'data_batches.nama_file',
+                    'data_batches.jenis_data',
+                    'data_batches.ukuran_file',
+                    'data_batches.status as batch_status',
+                    'deleter.name as deleter_name'
+                )
+                ->orderBy('trash.deleted_at', 'desc')
+                ->get();
 
-        $totalTrash = $trashedItems->count();
+            $totalTrash = $trashedItems->count();
+        } else {
+            $trashedItems = collect();
+            $totalTrash = 0;
+        }
 
         return view('manajemen-data', compact(
             'totalFile',
@@ -217,9 +377,20 @@ class UploadController extends Controller
     /**
      * Halaman Khusus Trash / Sampah Dokumen.
      */
-    public function trash()
+    public function trash(Request $request)
     {
-        $trashedItems = DB::table('trash')
+        $currentUser = Auth::user();
+        $isSuperAdmin = $currentUser && ($currentUser->role_id === 1 || ($currentUser->role && $currentUser->role->nama_role === 'Super Admin'));
+
+        if (!$isSuperAdmin) {
+            abort(403, 'Akses ditolak. Fitur Trash Data hanya dapat diakses oleh Super Admin.');
+        }
+
+        $perPage = in_array((int) $request->input('per_page', 10), [10, 25, 50, 100], true)
+            ? (int) $request->input('per_page', 10)
+            : 10;
+
+        $query = DB::table('trash')
             ->whereNull('trash.restored_at')
             ->join('data_batches', 'trash.batch_id', '=', 'data_batches.batch_id')
             ->leftJoin('users as deleter', 'trash.deleted_by', '=', 'deleter.id')
@@ -230,11 +401,24 @@ class UploadController extends Controller
                 'data_batches.ukuran_file',
                 'data_batches.status as batch_status',
                 'deleter.name as deleter_name'
-            )
-            ->orderBy('trash.deleted_at', 'desc')
-            ->get();
+            );
 
-        $totalTrash = $trashedItems->count();
+        if ($request->filled('q')) {
+            $keyword = trim($request->q);
+            $query->where(function ($q) use ($keyword) {
+                $q->where('data_batches.nama_file', 'like', "%{$keyword}%")
+                  ->orWhere('trash.batch_id', 'like', "%{$keyword}%")
+                  ->orWhere('data_batches.jenis_data', 'like', "%{$keyword}%");
+            });
+        }
+
+        $totalTrash = (clone $query)->count();
+
+        $trashedItems = $query
+            ->orderBy('trash.deleted_at', 'desc')
+            ->orderBy('trash.trash_id', 'desc')
+            ->paginate($perPage)
+            ->withQueryString();
 
         return view('pages.trash-data', compact('trashedItems', 'totalTrash'));
     }
@@ -266,20 +450,31 @@ class UploadController extends Controller
             return redirect()->back()->with('error', 'Data dokumen tidak ditemukan.');
         }
 
+        $isTrashed = DB::table('trash')
+            ->where('batch_id', $batchId)
+            ->whereNull('restored_at')
+            ->exists();
+
+        if ($isTrashed) {
+            $msgTrashed = 'Status dokumen yang berada di Trash tidak dapat diubah.';
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $msgTrashed], 422);
+            }
+            return redirect()->back()->with('error', $msgTrashed);
+        }
+
         $isCurrentlyReleased = ($batch->status === 'RILIS');
         $newStatus = $isCurrentlyReleased ? 'PRIVATE' : 'RILIS';
-        $releasedBy = $isCurrentlyReleased ? null : $currentUser->id;
-        $releasedAt = $isCurrentlyReleased ? null : now();
 
-        DB::table('data_batches')->where('batch_id', $batchId)->update([
-            'status' => $newStatus,
-            'released_by' => $releasedBy,
-            'released_at' => $releasedAt,
-            'updated_at' => now(),
-        ]);
-
-        // Catat ke log aktivitas jika memungkinkan
+        DB::beginTransaction();
         try {
+            $brsAggregation = app(\App\Services\BrsAggregationService::class);
+            $updated = $brsAggregation->updateBatchVisibility((int) $batchId, $newStatus, (int) $currentUser->id);
+
+            if (!$updated) {
+                throw new \RuntimeException("Gagal menyinkronkan status visibilitas batch #{$batchId}.");
+            }
+
             DB::table('activity_logs')->insert([
                 'user_id' => $currentUser->id,
                 'aktivitas' => $isCurrentlyReleased ? 'Tarik Publikasi Batch Data' : 'Rilis Publikasi Batch Data',
@@ -288,8 +483,16 @@ class UploadController extends Controller
                 'ip_address' => $request->ip(),
                 'created_at' => now(),
             ]);
+
+            DB::commit();
         } catch (\Throwable $e) {
-            logger()->warning('Gagal mencatat log aktivitas toggleRelease: ' . $e->getMessage());
+            DB::rollBack();
+            logger()->error("Gagal mengubah status rilis batch #{$batchId}: " . $e->getMessage());
+
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Gagal mengubah status publikasi data.'], 500);
+            }
+            return redirect()->back()->with('error', 'Gagal mengubah status publikasi data.');
         }
 
         $labelStatus = $newStatus === 'RILIS' ? 'Public' : 'Pending';
@@ -309,7 +512,10 @@ class UploadController extends Controller
 
     /**
      * Mengunduh/mengekspor data transaksi pada batch dalam format Excel (.xlsx).
-     * Data yang belum dirilis hanya boleh diekspor oleh Super Admin atau pemilik data.
+     * Kebijakan RBAC (Server-Side):
+     * - Super Admin (Role 1) & Viewer Eksekutif (Role 3): RILIS dan PRIVATE (aktif/non-Trash).
+     * - Pegawai (Role 2): RILIS (aktif/non-Trash) saja.
+     * - DRAFT dan Trash: Ditolak (HTTP 403) untuk seluruh role.
      */
     public function export(Request $request, $batchId)
     {
@@ -317,18 +523,41 @@ class UploadController extends Controller
         set_time_limit(300);
 
         $currentUser = Auth::user();
-        $isSuperAdmin = $currentUser && ($currentUser->role_id === 1 || ($currentUser->role && $currentUser->role->nama_role === 'Super Admin'));
+        if (!$currentUser) {
+            abort(401, 'Silakan login terlebih dahulu.');
+        }
 
         $batch = DB::table('data_batches')->where('batch_id', $batchId)->first();
         if (!$batch) {
             abort(404, 'Data dokumen tidak ditemukan.');
         }
 
-        $isOwner = $currentUser && ($batch->uploaded_by == $currentUser->id);
+        // Data yang berada di Trash dilarang diekspor untuk seluruh role
+        $isTrashed = DB::table('trash')
+            ->where('batch_id', $batchId)
+            ->whereNull('restored_at')
+            ->exists();
 
-        // Jika data belum dirilis (DRAFT / NON-RILIS), hanya Super Admin atau pemilik unggahan yang boleh mengunduh
-        if ($batch->status !== 'RILIS' && !$isSuperAdmin && !$isOwner) {
-            abort(403, 'Akses ditolak. Data ini belum dirilis dan hanya dapat diunduh oleh Super Admin atau pemilik unggahan.');
+        if ($isTrashed) {
+            abort(403, 'Akses ditolak. Data yang berada di Trash tidak dapat diekspor.');
+        }
+
+        $status = strtoupper(trim((string) ($batch->status ?? '')));
+        if ($status === 'DRAFT') {
+            abort(403, 'Akses ditolak. Data berstatus DRAFT tidak dapat diekspor.');
+        }
+
+        $roleId = (int) $currentUser->role_id;
+        $roleName = strtolower(trim((string) ($currentUser->role->nama_role ?? '')));
+        $isSuperAdmin = ($roleId === 1 || $roleName === 'super admin');
+        $isViewerEksekutif = ($roleId === 3 || $roleName === 'viewer eksekutif');
+
+        $allowedStatuses = ($isSuperAdmin || $isViewerEksekutif)
+            ? ['RILIS', 'PRIVATE']
+            : ['RILIS'];
+
+        if (!in_array($status, $allowedStatuses, true)) {
+            abort(403, "Akses ditolak. Anda tidak memiliki kewenangan mengunduh data berstatus {$status}.");
         }
 
         // Lepaskan session lock sesegera mungkin agar navigasi halaman lain (Dashboard, Upload Data, dll.)
@@ -337,7 +566,7 @@ class UploadController extends Controller
             session_write_close();
         }
 
-        $safeName = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $batch->nama_file);
+        $safeName = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', basename((string) $batch->nama_file));
         if (!str_ends_with(strtolower($safeName), '.xlsx')) {
             $safeName .= '.xlsx';
         }
@@ -350,19 +579,16 @@ class UploadController extends Controller
             $exporter = new \App\Services\FastExcelExporter();
             $totalExported = $exporter->exportBatchToPath((int) $batchId, $tempExcelPath);
 
-            // Catat aktivitas ekspor
-            try {
-                DB::table('activity_logs')->insert([
-                    'user_id' => $currentUser ? $currentUser->id : 1,
-                    'aktivitas' => 'Ekspor Data Batch',
-                    'modul' => 'Manajemen Data',
-                    'deskripsi' => "Mengunduh data batch #{$batchId} ({$batch->nama_file}) sebanyak {$totalExported} transaksi",
-                    'ip_address' => $request->ip(),
-                    'created_at' => now(),
-                ]);
-            } catch (\Throwable $e) {
-                logger()->warning('Gagal mencatat log ekspor: ' . $e->getMessage());
-            }
+            // Catat aktivitas ekspor secara wajib (jangan samarkan kegagalan log untuk ekspor PRIVATE)
+            $tipeSumber = $batch->tipe_sumber ?? 'distribusi';
+            DB::table('activity_logs')->insert([
+                'user_id' => $currentUser->id,
+                'aktivitas' => 'Ekspor Data Batch',
+                'modul' => 'Manajemen Data',
+                'deskripsi' => "Mengunduh data batch #{$batchId} ({$batch->nama_file}) [Status: {$status}, Sumber: {$tipeSumber}] sebanyak {$totalExported} transaksi",
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
 
             return response()->download($tempExcelPath, $downloadFilename, [
                 'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -376,7 +602,7 @@ class UploadController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
-            return redirect()->back()->with('error', 'Gagal mengekspor data: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Gagal mengekspor data batch.');
         }
     }
 
@@ -389,6 +615,13 @@ class UploadController extends Controller
         $currentUser = Auth::user();
         $isSuperAdmin = $currentUser && ($currentUser->role_id === 1 || ($currentUser->role && $currentUser->role->nama_role === 'Super Admin'));
 
+        if (!$isSuperAdmin) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Akses ditolak. Pengubahan data batch hanya diizinkan bagi Super Admin.'], 403);
+            }
+            abort(403, 'Akses ditolak. Pengubahan data batch hanya diizinkan bagi Super Admin.');
+        }
+
         $batch = DB::table('data_batches')->where('batch_id', $batchId)->first();
         if (!$batch) {
             if ($request->expectsJson() || $request->ajax()) {
@@ -397,25 +630,91 @@ class UploadController extends Controller
             return redirect()->back()->with('error', 'Data dokumen tidak ditemukan.');
         }
 
-        $isOwner = $currentUser && ($batch->uploaded_by == $currentUser->id);
-        if (!$isSuperAdmin && !$isOwner) {
-            if ($request->expectsJson() || $request->ajax()) {
-                return response()->json(['success' => false, 'message' => 'Akses ditolak. Anda tidak berwenang mengedit data ini.'], 403);
-            }
-            return redirect()->back()->with('error', 'Akses ditolak. Anda tidak berwenang mengedit data ini.');
-        }
-
         $request->validate([
-            'nama_file' => 'required|string|max:255',
+            'nama_file' => [
+                'required',
+                'string',
+                'max:255',
+                'regex:/^[^\/\\\\]+$/',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (str_contains((string) $value, '..')) {
+                        $fail('Nama dokumen tidak boleh mengandung karakter traversal (..).');
+                    }
+                },
+            ],
             'jenis_data' => 'required|in:Ekspor,Impor',
         ], [
             'nama_file.required' => 'Nama dokumen tidak boleh kosong.',
+            'nama_file.regex' => 'Nama dokumen tidak boleh mengandung karakter pemisah path (/ atau \\).',
             'jenis_data.required' => 'Jenis data wajib dipilih.',
             'jenis_data.in' => 'Jenis data harus berupa Ekspor atau Impor.',
         ]);
 
+        $tipeSumber = strtolower(trim((string) ($batch->tipe_sumber ?? 'distribusi')));
+        $txTable = ($tipeSumber === 'neraca') ? 'neraca_transactions' : 'distribusi_transactions';
+        $oldJenisData = (string) $batch->jenis_data;
+        $jenisChanged = ($oldJenisData !== $request->jenis_data);
+        $isTrashed = DB::table('trash')
+            ->where('batch_id', $batchId)
+            ->whereNull('restored_at')
+            ->exists();
+        $batchStatus = strtoupper(trim((string) ($batch->status ?? '')));
+        $shouldResyncMart = $jenisChanged && !$isTrashed && in_array($batchStatus, ['PRIVATE', 'RILIS'], true);
+
+        // Cegah tabrakan periode aktif saat mengubah jenis_data (Ekspor <-> Impor) pada batch aktif
+        if ($jenisChanged && !$isTrashed) {
+            $targetJenisLower = strtolower(trim((string) $request->jenis_data));
+            $candidatePeriods = [];
+            if ($batch->periode_tahun !== null && $batch->periode_bulan !== null) {
+                $candidatePeriods[] = ['tahun' => (int) $batch->periode_tahun, 'bulan' => (int) $batch->periode_bulan];
+            } else {
+                $txPeriods = DB::table($txTable)
+                    ->where('batch_id', $batchId)
+                    ->select('tahun', 'bulan')
+                    ->distinct()
+                    ->get();
+                foreach ($txPeriods as $tp) {
+                    $candidatePeriods[] = ['tahun' => (int) $tp->tahun, 'bulan' => (int) $tp->bulan];
+                }
+            }
+
+            foreach ($candidatePeriods as $period) {
+                $conflictingBatch = DB::table('data_batches')
+                    ->where('batch_id', '!=', $batchId)
+                    ->where('tipe_sumber', $tipeSumber)
+                    ->whereRaw('LOWER(jenis_data) = ?', [$targetJenisLower])
+                    ->where('periode_tahun', $period['tahun'])
+                    ->where('periode_bulan', $period['bulan'])
+                    ->whereNotIn('batch_id', function ($sub) {
+                        $sub->select('batch_id')->from('trash')->whereNull('restored_at');
+                    })
+                    ->first();
+
+                if ($conflictingBatch) {
+                    $msgConflict = "Gagal mengubah jenis data karena periode {$request->jenis_data} ({$tipeSumber}) {$period['bulan']}/{$period['tahun']} sudah memiliki batch aktif (#{$conflictingBatch->batch_id}).";
+                    if ($request->expectsJson() || $request->ajax()) {
+                        return response()->json(['success' => false, 'message' => $msgConflict], 409);
+                    }
+                    return redirect()->back()->with('error', $msgConflict);
+                }
+            }
+        }
+
+        // Kumpulkan periode lama sebelum transaksi diubah agar origin summary jenis lama bersih tuntas
+        $oldDistribusiPeriods = [];
+        if ($shouldResyncMart && $tipeSumber === 'distribusi') {
+            $oldDistribusiPeriods = DB::table($txTable)
+                ->where('batch_id', $batchId)
+                ->select('tahun', 'bulan')
+                ->distinct()
+                ->get()
+                ->all();
+        }
+
         DB::beginTransaction();
         try {
+            $brsAggregation = $shouldResyncMart ? app(\App\Services\BrsAggregationService::class) : null;
+
             // PERTAHANKAN STATUS ASLI: Status Pending TIDAK BOLEH otomatis berubah menjadi Public!
             DB::table('data_batches')->where('batch_id', $batchId)->update([
                 'nama_file' => $request->nama_file,
@@ -423,12 +722,26 @@ class UploadController extends Controller
                 'updated_at' => now(),
             ]);
 
-            // Jika jenis data berubah, sinkronkan nilai jenis_transaksi pada seluruh baris transaksi di batch ini
-            if ($batch->jenis_data !== $request->jenis_data) {
-                DB::table('transactions')->where('batch_id', $batchId)->update([
+            // Jika jenis data berubah, sinkronkan nilai jenis_transaksi pada tabel transaksi sesuai metodologi batch
+            // SEBELUM membersihkan mart/origin lama agar syncOriginSummariesForPeriod tidak meng-insert ulang jenis lama.
+            if ($jenisChanged) {
+                DB::table($txTable)->where('batch_id', $batchId)->update([
                     'jenis_transaksi' => $request->jenis_data,
                     'updated_at' => now(),
                 ]);
+            }
+
+            if ($shouldResyncMart && $brsAggregation !== null) {
+                $brsAggregation->removeBatchAggregation((int) $batchId);
+
+                // Segarkan origin summaries jenis lama (distribusi) setelah transaksi sudah berganti jenis baru
+                if ($tipeSumber === 'distribusi') {
+                    foreach ($oldDistribusiPeriods as $p) {
+                        $brsAggregation->syncOriginSummariesForPeriod((int) $p->tahun, (int) $p->bulan, $oldJenisData);
+                    }
+                }
+
+                $brsAggregation->aggregateBatch((int) $batchId, $batchStatus);
             }
 
             // Catat log aktivitas
@@ -495,7 +808,22 @@ class UploadController extends Controller
             return redirect()->back()->with('error', 'Data dokumen tidak ditemukan.');
         }
 
-        $totalTransaksi = DB::table('transactions')->where('batch_id', $batchId)->count();
+        $alreadyTrashed = DB::table('trash')
+            ->where('batch_id', $batchId)
+            ->whereNull('restored_at')
+            ->exists();
+
+        if ($alreadyTrashed) {
+            $msgAlreadyTrashed = 'Dokumen sudah berada di Trash.';
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $msgAlreadyTrashed], 409);
+            }
+            return redirect()->back()->with('error', $msgAlreadyTrashed);
+        }
+
+        $tipeSumber = strtolower(trim((string) ($batch->tipe_sumber ?? 'distribusi')));
+        $txTable = ($tipeSumber === 'neraca') ? 'neraca_transactions' : 'distribusi_transactions';
+        $totalTransaksi = DB::table($txTable)->where('batch_id', $batchId)->count();
 
         DB::beginTransaction();
         try {
@@ -504,6 +832,7 @@ class UploadController extends Controller
                 'batch_id' => $batch->batch_id,
                 'nama_file' => $batch->nama_file,
                 'jenis_data' => $batch->jenis_data,
+                'tipe_sumber' => $tipeSumber,
                 'ukuran_file' => $batch->ukuran_file,
                 'status' => $batch->status,
                 'uploaded_by' => $batch->uploaded_by,
@@ -520,6 +849,9 @@ class UploadController extends Controller
                 'restored_by' => null,
                 'restored_at' => null,
             ]);
+
+            // Keluarkan agregasi batch dari Analytical Mart secara atomik (tanpa menyentuh baris historis batch_id IS NULL)
+            app(\App\Services\BrsAggregationService::class)->removeBatchAggregation((int) $batchId);
 
             // Catat log aktivitas
             DB::table('activity_logs')->insert([
@@ -584,12 +916,42 @@ class UploadController extends Controller
         $batch = DB::table('data_batches')->where('batch_id', $batchId)->first();
         $namaFile = $batch ? $batch->nama_file : 'Dokumen';
 
+        // Cegah tabrakan periode aktif saat memulihkan batch dari Trash
+        if ($batch && $batch->periode_tahun !== null && $batch->periode_bulan !== null) {
+            $tipeSumber = strtolower(trim((string) ($batch->tipe_sumber ?? 'distribusi')));
+            $jenisLower = strtolower(trim((string) ($batch->jenis_data ?? '')));
+            $conflictingBatch = DB::table('data_batches')
+                ->where('batch_id', '!=', $batchId)
+                ->where('tipe_sumber', $tipeSumber)
+                ->whereRaw('LOWER(jenis_data) = ?', [$jenisLower])
+                ->where('periode_tahun', $batch->periode_tahun)
+                ->where('periode_bulan', $batch->periode_bulan)
+                ->whereNotIn('batch_id', function ($sub) {
+                    $sub->select('batch_id')->from('trash')->whereNull('restored_at');
+                })
+                ->first();
+
+            if ($conflictingBatch) {
+                $msgConflict = "Gagal memulihkan dokumen karena periode {$batch->jenis_data} ({$tipeSumber}) {$batch->periode_bulan}/{$batch->periode_tahun} sudah memiliki batch aktif (#{$conflictingBatch->batch_id}).";
+                if ($request->expectsJson() || $request->ajax()) {
+                    return response()->json(['success' => false, 'message' => $msgConflict], 409);
+                }
+                return redirect()->back()->with('error', $msgConflict);
+            }
+        }
+
         DB::beginTransaction();
         try {
             DB::table('trash')->where('trash_id', $trashRecord->trash_id)->update([
                 'restored_by' => $currentUser->id,
                 'restored_at' => now(),
             ]);
+
+            // Jika status batch adalah PRIVATE atau RILIS, bangun ulang Two-Tier Analytical Mart secara atomik (tanpa menelan error)
+            $batchStatus = $batch ? strtoupper(trim((string) ($batch->status ?? ''))) : '';
+            if ($batch && in_array($batchStatus, ['PRIVATE', 'RILIS'], true)) {
+                app(\App\Services\BrsAggregationService::class)->aggregateBatch((int) $batchId, $batchStatus);
+            }
 
             // Catat log aktivitas
             DB::table('activity_logs')->insert([
@@ -646,12 +1008,28 @@ class UploadController extends Controller
             return redirect()->back()->with('error', 'Data tidak ditemukan.');
         }
 
+        $isTrashed = DB::table('trash')
+            ->where('batch_id', $batchId)
+            ->whereNull('restored_at')
+            ->exists();
+
+        if (!$isTrashed) {
+            $msgNotTrashed = 'Hapus permanen hanya diizinkan untuk dokumen yang berada di Trash.';
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $msgNotTrashed], 422);
+            }
+            return redirect()->back()->with('error', $msgNotTrashed);
+        }
+
         DB::beginTransaction();
         try {
+            // Pastikan seluruh baris mart milik batch ini bersih secara atomik sebelum menghapus data_batches
+            app(\App\Services\BrsAggregationService::class)->removeBatchAggregation((int) $batchId);
+
             // Hapus referensi di tabel trash
             DB::table('trash')->where('batch_id', $batchId)->delete();
 
-            // Hapus batch (cascade akan menghapus transaksi terkait di tabel transactions)
+            // Hapus batch (cascade akan menghapus transaksi terkait di tabel distribusi_transactions / neraca_transactions)
             DB::table('data_batches')->where('batch_id', $batchId)->delete();
 
             // Catat log aktivitas
@@ -666,6 +1044,55 @@ class UploadController extends Controller
 
             DB::commit();
 
+            // Bersihkan file fisik di private storage ('local') HANYA setelah commit sukses
+            // dalam blok try/catch terpisah agar kegagalan filesystem tidak memicu DB::rollBack() pasca-commit.
+            try {
+                $rawName = (string) ($batch->nama_file ?? '');
+                $safeFilename = basename($rawName);
+                $isSafeFilename = $rawName !== ''
+                    && $safeFilename === $rawName
+                    && $safeFilename !== '.'
+                    && $safeFilename !== '..'
+                    && !str_contains($rawName, '..')
+                    && !str_contains($rawName, '/')
+                    && !str_contains($rawName, '\\');
+
+                if ($isSafeFilename) {
+                    $stillReferenced = DB::table('data_batches')
+                        ->where('nama_file', $safeFilename)
+                        ->exists();
+
+                    if (!$stillReferenced) {
+                        $allowedPrivateDirs = [
+                            'uploads/excel',
+                            'uploads/raw_distribusi',
+                            'uploads/raw_neraca',
+                        ];
+
+                        foreach ($allowedPrivateDirs as $relDir) {
+                            $relPath = $relDir . '/' . $safeFilename;
+                            if (!Storage::disk('local')->exists($relPath)) {
+                                continue;
+                            }
+
+                            $realBase = realpath(Storage::disk('local')->path($relDir));
+                            $realTarget = realpath(Storage::disk('local')->path($relPath));
+
+                            if (
+                                $realBase !== false
+                                && $realTarget !== false
+                                && str_starts_with($realTarget, $realBase . DIRECTORY_SEPARATOR)
+                                && is_file($realTarget)
+                            ) {
+                                Storage::disk('local')->delete($relPath);
+                            }
+                        }
+                    }
+                }
+            } catch (\Throwable $fsErr) {
+                logger()->warning("Batch #{$batchId} berhasil dihapus dari DB, namun gagal membersihkan arsip fisik: " . $fsErr->getMessage());
+            }
+
             $pesan = "Dokumen '{$batch->nama_file}' berhasil dihapus secara permanen.";
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json(['success' => true, 'message' => $pesan]);
@@ -678,10 +1105,10 @@ class UploadController extends Controller
             logger()->error('Gagal hapus permanen batch: ' . $e->getMessage());
 
             if ($request->expectsJson() || $request->ajax()) {
-                return response()->json(['success' => false, 'message' => 'Gagal menghapus permanen: ' . $e->getMessage()], 500);
+                return response()->json(['success' => false, 'message' => 'Gagal menghapus permanen batch.'], 500);
             }
 
-            return redirect()->back()->with('error', 'Gagal menghapus permanen: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Gagal menghapus permanen batch.');
         }
     }
 }

@@ -37,13 +37,29 @@ class FilteringController extends Controller
         $isSuperAdmin = $currentUser && ($currentUser->role_id === 1);
         $isViewerEksekutif = $currentUser && ($currentUser->role_id === 3 || ($currentUser->role && $currentUser->role->nama_role === 'Viewer Eksekutif'));
 
-        $query = DB::table('transactions')
-            ->join('data_batches', 'transactions.batch_id', '=', 'data_batches.batch_id')
-            ->leftJoin('master_hs', 'transactions.hs_id', '=', 'master_hs.hs_id')
-            ->leftJoin('master_negara', 'transactions.negara_id', '=', 'master_negara.negara_id')
-            ->leftJoin('master_provinsi', 'transactions.provinsi_id', '=', 'master_provinsi.provinsi_id')
-            ->leftJoin('master_kabkota', 'transactions.kabkota_id', '=', 'master_kabkota.kabkota_id')
-            ->leftJoin('master_pelabuhan', 'transactions.pelabuhan_id', '=', 'master_pelabuhan.pelabuhan_id');
+        // Validasi ketat parameter tipe_sumber (Hanya izinkan 'distribusi' atau 'neraca', default: 'distribusi')
+        $tipeSumber = strtolower((string) $request->input('tipe_sumber', 'distribusi'));
+        if (!in_array($tipeSumber, ['distribusi', 'neraca'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Parameter tipe_sumber tidak valid. Hanya menerima "distribusi" atau "neraca".',
+            ], 422);
+        }
+
+        $txTable = ($tipeSumber === 'neraca') ? 'neraca_transactions' : 'distribusi_transactions';
+
+        $query = DB::table("{$txTable} as t")
+            ->join('data_batches', 't.batch_id', '=', 'data_batches.batch_id')
+            ->leftJoin('master_hs', 't.hs_id', '=', 'master_hs.hs_id')
+            ->leftJoin('master_negara', 't.negara_id', '=', 'master_negara.negara_id')
+            ->leftJoin('master_provinsi', 't.provinsi_id', '=', 'master_provinsi.provinsi_id')
+            ->leftJoin('master_kabkota', 't.kabkota_id', '=', 'master_kabkota.kabkota_id')
+            ->leftJoin('master_pelabuhan', 't.pelabuhan_id', '=', 'master_pelabuhan.pelabuhan_id')
+            ->where('t.tipe_sumber', $tipeSumber)
+            ->where('data_batches.tipe_sumber', $tipeSumber)
+            ->whereNotIn('t.batch_id', function ($sub) {
+                $sub->select('batch_id')->from('trash')->whereNull('restored_at');
+            });
 
         // Aturan Hak Akses:
         // - Pegawai (role 2): HANYA melihat data berstatus RILIS!
@@ -64,70 +80,133 @@ class FilteringController extends Controller
 
         // Filter Jenis Transaksi (Ekspor / Impor)
         if ($request->filled('jenis_transaksi')) {
-            $query->where('transactions.jenis_transaksi', $request->jenis_transaksi);
+            $query->where('t.jenis_transaksi', $request->jenis_transaksi);
         }
 
         // Filter Tahun
         if ($request->filled('tahun')) {
-            $query->where('transactions.tahun', (int) $request->tahun);
+            $query->where('t.tahun', (int) $request->tahun);
         }
 
         // Filter Bulan
-        if ($request->filled('bulan')) {
-            $query->where('transactions.bulan', (int) $request->bulan);
+        if ($request->filled('bulan') && $request->bulan !== 'ALL' && $request->bulan !== '') {
+            $query->where('t.bulan', (int) $request->bulan);
+        }
+
+        // Filter Triwulan (Q1: 1-3, Q2: 4-6, Q3: 7-9, Q4: 10-12)
+        if ($request->filled('triwulan') && $request->triwulan !== 'ALL' && $request->triwulan !== '') {
+            $tw = (int) $request->triwulan;
+            $twMonths = match ($tw) {
+                1 => [1, 2, 3],
+                2 => [4, 5, 6],
+                3 => [7, 8, 9],
+                4 => [10, 11, 12],
+                default => null,
+            };
+            if ($twMonths && !$request->filled('bulan')) {
+                $query->whereIn('t.bulan', $twMonths);
+            }
+        }
+
+        // Filter Kabupaten / Kota
+        if ($request->filled('kabkota_id') && $request->kabkota_id !== 'ALL' && $request->kabkota_id !== '') {
+            $query->where('t.kabkota_id', (int) $request->kabkota_id);
         }
 
         // Filter Negara
         if ($request->filled('negara_id') && $request->negara_id !== 'ALL') {
-            $query->where('transactions.negara_id', (int) $request->negara_id);
+            $query->where('t.negara_id', (int) $request->negara_id);
         }
 
-        // Filter HS 2 digit
+        // Filter HS 2 digit (untuk Neraca juga mencakup hs_code_raw yang unmapped)
         if ($request->filled('hs2') && $request->hs2 !== 'ALL') {
-            $query->where('master_hs.hs2', $request->hs2);
+            $hs2Filter = trim((string) $request->hs2);
+            if ($tipeSumber === 'neraca') {
+                $query->where(function ($q) use ($hs2Filter) {
+                    $q->where('master_hs.hs2', $hs2Filter)
+                        ->orWhere(function ($sub) use ($hs2Filter) {
+                            $sub->whereNull('t.hs_id')
+                                ->whereRaw('SUBSTR(t.hs_code_raw, 1, 2) = ?', [$hs2Filter]);
+                        });
+                });
+            } else {
+                $query->where('master_hs.hs2', $hs2Filter);
+            }
         }
 
         // Filter Pelabuhan
         if ($request->filled('pelabuhan_id') && $request->pelabuhan_id !== 'ALL') {
-            $query->where('transactions.pelabuhan_id', (int) $request->pelabuhan_id);
+            $query->where('t.pelabuhan_id', (int) $request->pelabuhan_id);
         }
 
-        // Hitung total ringkasan
-        $totalRows = (clone $query)->count();
-        $totalNilaiFob = (clone $query)->sum('transactions.nilai');
-        $totalBeratNetto = (clone $query)->sum('transactions.berat');
+        // Hitung total ringkasan dengan presisi DECIMAL(20,6) via BCMath
+        $summaryAgg = (clone $query)
+            ->selectRaw('COUNT(*) as total_rows, COALESCE(SUM(t.nilai), 0) as total_nilai, COALESCE(SUM(t.berat), 0) as total_berat')
+            ->first();
 
-        // Ambil data dengan pagination
-        $results = $query->select(
-            'transactions.transaction_id',
-            'transactions.batch_id',
-            'transactions.jenis_transaksi',
-            'transactions.bulan',
-            'transactions.tahun',
-            'transactions.berat',
-            'transactions.nilai',
-            'master_hs.hs_code',
+        $totalRows = (int) ($summaryAgg->total_rows ?? 0);
+        $totalNilaiExact = bcadd((string) ($summaryAgg->total_nilai ?? '0'), '0', 6);
+        $totalBeratExact = bcadd((string) ($summaryAgg->total_berat ?? '0'), '0', 6);
+        $totalNilaiJuta = round((float) bcdiv($totalNilaiExact, '1000000', 6), 2);
+        $totalBeratRibuTon = round((float) bcdiv($totalBeratExact, '1000000', 6), 2);
+
+        $selectColumns = [
+            't.transaction_id',
+            't.batch_id',
+            't.jenis_transaksi',
+            't.bulan',
+            't.tahun',
+            't.berat',
+            't.nilai',
+            $tipeSumber === 'neraca'
+                ? DB::raw('COALESCE(master_hs.hs_code, t.hs_code_raw) as hs_code')
+                : 'master_hs.hs_code',
             'master_hs.hs2_desc',
-            'master_hs.hs_desc',
+            $tipeSumber === 'neraca'
+                ? DB::raw('COALESCE(master_hs.hs_desc, t.hs_desc_raw) as hs_desc')
+                : 'master_hs.hs_desc',
             'master_negara.nama_negara',
             'master_provinsi.nama_provinsi',
             'master_kabkota.nama_kabkota',
             'master_pelabuhan.nama_pelabuhan',
             'data_batches.nama_file',
-            'data_batches.status as batch_status'
-        )
-        ->orderBy('transactions.tahun', 'desc')
-        ->orderBy('transactions.bulan', 'desc')
-        ->paginate($request->input('per_page', 15));
+            'data_batches.status as batch_status',
+        ];
+
+        if ($tipeSumber === 'neraca') {
+            $selectColumns[] = 't.mapping_status';
+        }
+
+        $perPage = in_array((int) $request->input('per_page', 10), [10, 25, 50, 100], true)
+            ? (int) $request->input('per_page', 10)
+            : 10;
+
+        // Ambil data dengan pagination
+        $results = $query->select($selectColumns)
+            ->orderBy('t.tahun', 'desc')
+            ->orderBy('t.bulan', 'desc')
+            ->orderBy('t.transaction_id', 'desc')
+            ->paginate($perPage);
+
+        $jenisFilter = strtolower(trim((string) $request->input('jenis_transaksi', '')));
+        $nilaiLabel = match ($jenisFilter) {
+            'ekspor' => 'FOB (US$)',
+            'impor' => 'CIF (US$)',
+            default => 'Campuran Ekspor (FOB) & Impor (CIF)',
+        };
 
         return response()->json([
             'success' => true,
             'summary' => [
+                'tipe_sumber' => $tipeSumber,
+                'nilai_label' => $nilaiLabel,
                 'total_rows' => $totalRows,
-                'total_nilai_fob' => (float) $totalNilaiFob,
-                'total_nilai_fob_juta' => round($totalNilaiFob / 1000000, 2),
-                'total_berat_netto' => (float) $totalBeratNetto,
-                'total_berat_ribu_ton' => round($totalBeratNetto / 1000000, 2),
+                'total_nilai_fob' => (float) $totalNilaiExact,
+                'total_nilai_fob_exact' => $totalNilaiExact,
+                'total_nilai_fob_juta' => $totalNilaiJuta,
+                'total_berat_netto' => (float) $totalBeratExact,
+                'total_berat_netto_exact' => $totalBeratExact,
+                'total_berat_ribu_ton' => $totalBeratRibuTon,
             ],
             'data' => $results,
         ]);

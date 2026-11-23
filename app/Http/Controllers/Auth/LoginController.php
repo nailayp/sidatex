@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -50,20 +51,21 @@ class LoginController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
+        // Catat aktivitas Login pengguna
+        ActivityLogger::log('Login Pengguna', 'Autentikasi', "Pengguna {$user->name} ({$user->username}) berhasil masuk ke sistem.", $user->id);
+
         // =========================================================
         // LOGIKA PENGECEKAN ROLE UNTUK REDIRECT DASHBOARD
         // =========================================================
         // Asumsi: Anda memiliki kolom 'role_id' di tabel users.
         // Jika namanya berbeda (misal 'role' atau 'id_role'), silakan sesuaikan.
 
-        // Arahkan semua role yang berhasil login langsung ke rute dashboard utama atau upload-data
-        if ($user->role_id == 1 || $user->role_id == 3) {
-            // Untuk Admin / Super Admin, langsung arahkan ke modul Upload Data atau Dashboard
+        // Hanya Super Admin (Role 1) diarahkan ke Upload Data; Pegawai (Role 2) & Viewer Eksekutif (Role 3) ke Dashboard
+        if ((int) $user->role_id === 1) {
             return redirect()->route('upload-data');
-        } else {
-            // Untuk role lainnya (misal Pimpinan)
-            return redirect()->route('dashboard');
         }
+
+        return redirect()->route('dashboard');
     }
 
     /**
@@ -71,6 +73,11 @@ class LoginController extends Controller
      */
     public function logout(Request $request)
     {
+        $user = Auth::user();
+        if ($user) {
+            ActivityLogger::log('Logout Pengguna', 'Autentikasi', "Pengguna {$user->name} ({$user->username}) keluar dari sistem.", $user->id);
+        }
+
         Auth::logout();
 
         $request->session()->invalidate();

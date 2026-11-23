@@ -118,6 +118,11 @@ class FastExcelExporter
 
         fwrite($handle, '<sheetData>' . "\n");
 
+        $tipeSumber = strtolower(trim((string) ($batch->tipe_sumber ?? 'distribusi')));
+        $txTable = ($tipeSumber === 'neraca') ? 'neraca_transactions' : 'distribusi_transactions';
+        $isImpor = strtolower(trim((string) ($batch->jenis_data ?? ''))) === 'impor';
+        $nilaiHeader = $isImpor ? 'CIF (US$)' : 'FOB (US$)';
+
         // Header Row (Row 1) dengan style index 1 (Hijau BPS bold white)
         $headers = [
             'A1' => 'No',
@@ -132,7 +137,7 @@ class FastExcelExporter
             'J1' => 'KABUPATEN/KOTA',
             'K1' => 'PELABUHAN',
             'L1' => 'NETTO (KG)',
-            'M1' => 'FOB (US$)',
+            'M1' => $nilaiHeader,
         ];
 
         fwrite($handle, '<row r="1" ht="26" customHeight="1">');
@@ -142,30 +147,35 @@ class FastExcelExporter
         }
         fwrite($handle, '</row>' . "\n");
 
-        // Query transaksi bertahap (chunking cursor) menggunakan orderBy transaction_id
-        $query = DB::table('transactions')
-            ->where('transactions.batch_id', $batchId)
-            ->leftJoin('master_hs', 'transactions.hs_id', '=', 'master_hs.hs_id')
-            ->leftJoin('master_negara', 'transactions.negara_id', '=', 'master_negara.negara_id')
-            ->leftJoin('master_provinsi', 'transactions.provinsi_id', '=', 'master_provinsi.provinsi_id')
-            ->leftJoin('master_kabkota', 'transactions.kabkota_id', '=', 'master_kabkota.kabkota_id')
-            ->leftJoin('master_pelabuhan', 'transactions.pelabuhan_id', '=', 'master_pelabuhan.pelabuhan_id')
+        // Query transaksi bertahap (chunking cursor) sesuai tabel metodologi batch (Distribusi vs Neraca)
+        $query = DB::table("{$txTable} as t")
+            ->where('t.batch_id', $batchId)
+            ->where('t.tipe_sumber', $tipeSumber)
+            ->leftJoin('master_hs', 't.hs_id', '=', 'master_hs.hs_id')
+            ->leftJoin('master_negara', 't.negara_id', '=', 'master_negara.negara_id')
+            ->leftJoin('master_provinsi', 't.provinsi_id', '=', 'master_provinsi.provinsi_id')
+            ->leftJoin('master_kabkota', 't.kabkota_id', '=', 'master_kabkota.kabkota_id')
+            ->leftJoin('master_pelabuhan', 't.pelabuhan_id', '=', 'master_pelabuhan.pelabuhan_id')
             ->select(
-                'transactions.transaction_id',
-                'transactions.bulan',
-                'transactions.tahun',
-                'transactions.jenis_transaksi',
-                'master_hs.hs_code',
-                'master_hs.hs_desc',
+                't.transaction_id',
+                't.bulan',
+                't.tahun',
+                't.jenis_transaksi',
+                $tipeSumber === 'neraca'
+                    ? DB::raw('COALESCE(master_hs.hs_code, t.hs_code_raw) as hs_code')
+                    : 'master_hs.hs_code',
+                $tipeSumber === 'neraca'
+                    ? DB::raw('COALESCE(master_hs.hs_desc, t.hs_desc_raw) as hs_desc')
+                    : 'master_hs.hs_desc',
                 'master_negara.kode_negara',
                 'master_negara.nama_negara',
                 'master_provinsi.nama_provinsi',
                 'master_kabkota.nama_kabkota',
                 'master_pelabuhan.nama_pelabuhan',
-                'transactions.berat',
-                'transactions.nilai'
+                't.berat',
+                't.nilai'
             )
-            ->orderBy('transactions.transaction_id', 'asc');
+            ->orderBy('t.transaction_id', 'asc');
 
         $rowNum = 2;
         $totalRows = 0;
@@ -175,35 +185,38 @@ class FastExcelExporter
             $r = $rowNum++;
 
             $cNo = '<c r="A' . $r . '"><v>' . ($totalRows) . '</v></c>';
-            $cBulan = '<c r="B' . $r . '"><v>' . ((int)$t->bulan) . '</v></c>';
-            $cTahun = '<c r="C' . $r . '"><v>' . ((int)$t->tahun) . '</v></c>';
-            
-            $jns = htmlspecialchars((string)($t->jenis_transaksi ?? ''), ENT_XML1, 'UTF-8');
-            cJenis: $cJenis = '<c r="D' . $r . '" t="inlineStr"><is><t>' . $jns . '</t></is></c>';
-            
-            $hs = htmlspecialchars((string)($t->hs_code ?? ''), ENT_XML1, 'UTF-8');
+            $cBulan = '<c r="B' . $r . '"><v>' . ((int) $t->bulan) . '</v></c>';
+            $cTahun = '<c r="C' . $r . '"><v>' . ((int) $t->tahun) . '</v></c>';
+
+            $jns = htmlspecialchars((string) ($t->jenis_transaksi ?? ''), ENT_XML1, 'UTF-8');
+            $cJenis = '<c r="D' . $r . '" t="inlineStr"><is><t>' . $jns . '</t></is></c>';
+
+            $hs = htmlspecialchars((string) ($t->hs_code ?? ''), ENT_XML1, 'UTF-8');
             $cHs = '<c r="E' . $r . '" t="inlineStr"><is><t>' . $hs . '</t></is></c>';
-            
-            $hsDesc = htmlspecialchars((string)($t->hs_desc ?? ''), ENT_XML1, 'UTF-8');
+
+            $hsDesc = htmlspecialchars((string) ($t->hs_desc ?? ''), ENT_XML1, 'UTF-8');
             $cHsDesc = '<c r="F' . $r . '" t="inlineStr"><is><t>' . $hsDesc . '</t></is></c>';
-            
-            $ngrCode = htmlspecialchars((string)($t->kode_negara ?? ''), ENT_XML1, 'UTF-8');
+
+            $ngrCode = htmlspecialchars((string) ($t->kode_negara ?? ''), ENT_XML1, 'UTF-8');
             $cNgrCode = '<c r="G' . $r . '" t="inlineStr"><is><t>' . $ngrCode . '</t></is></c>';
-            
-            $ngrName = htmlspecialchars((string)($t->nama_negara ?? ''), ENT_XML1, 'UTF-8');
+
+            $ngrName = htmlspecialchars((string) ($t->nama_negara ?? ''), ENT_XML1, 'UTF-8');
             $cNgrName = '<c r="H' . $r . '" t="inlineStr"><is><t>' . $ngrName . '</t></is></c>';
-            
-            $prov = htmlspecialchars((string)($t->nama_provinsi ?? ''), ENT_XML1, 'UTF-8');
+
+            $prov = htmlspecialchars((string) ($t->nama_provinsi ?? ''), ENT_XML1, 'UTF-8');
             $cProv = '<c r="I' . $r . '" t="inlineStr"><is><t>' . $prov . '</t></is></c>';
-            
-            $kab = htmlspecialchars((string)($t->nama_kabkota ?? ''), ENT_XML1, 'UTF-8');
+
+            $kab = htmlspecialchars((string) ($t->nama_kabkota ?? ''), ENT_XML1, 'UTF-8');
             $cKab = '<c r="J' . $r . '" t="inlineStr"><is><t>' . $kab . '</t></is></c>';
-            
-            $pel = htmlspecialchars((string)($t->nama_pelabuhan ?? ''), ENT_XML1, 'UTF-8');
+
+            $pel = htmlspecialchars((string) ($t->nama_pelabuhan ?? ''), ENT_XML1, 'UTF-8');
             $cPel = '<c r="K' . $r . '" t="inlineStr"><is><t>' . $pel . '</t></is></c>';
-            
-            $cBerat = '<c r="L' . $r . '" s="2"><v>' . sprintf('%.3F', (float)$t->berat) . '</v></c>';
-            $cNilai = '<c r="M' . $r . '" s="3"><v>' . sprintf('%.2F', (float)$t->nilai) . '</v></c>';
+
+            // Pertahankan presisi DECIMAL(20,6) di nilai sel OpenXML (tampilan tetap mengikuti style s="2"/s="3")
+            $beratExact = bcadd((string) ($t->berat ?? '0'), '0', 6);
+            $nilaiExact = bcadd((string) ($t->nilai ?? '0'), '0', 6);
+            $cBerat = '<c r="L' . $r . '" s="2"><v>' . $beratExact . '</v></c>';
+            $cNilai = '<c r="M' . $r . '" s="3"><v>' . $nilaiExact . '</v></c>';
 
             fwrite($handle, '<row r="' . $r . '">' .
                 $cNo . $cBulan . $cTahun . $cJenis . $cHs . $cHsDesc .

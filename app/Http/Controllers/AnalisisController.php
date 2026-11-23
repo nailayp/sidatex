@@ -21,12 +21,17 @@ class AnalisisController extends Controller
      */
     public function index(Request $request)
     {
-        $availableYears = DB::table('transactions')
-            ->join('data_batches', 'transactions.batch_id', '=', 'data_batches.batch_id')
+        $availableYears = DB::table('distribusi_transactions')
+            ->join('data_batches', 'distribusi_transactions.batch_id', '=', 'data_batches.batch_id')
             ->where('data_batches.status', 'RILIS')
+            ->where('distribusi_transactions.tipe_sumber', 'distribusi')
+            ->where('data_batches.tipe_sumber', 'distribusi')
+            ->whereNotIn('distribusi_transactions.batch_id', function ($sub) {
+                $sub->select('batch_id')->from('trash')->whereNull('restored_at');
+            })
             ->distinct()
-            ->orderBy('transactions.tahun', 'desc')
-            ->pluck('transactions.tahun')
+            ->orderBy('distribusi_transactions.tahun', 'desc')
+            ->pluck('distribusi_transactions.tahun')
             ->toArray();
 
         $selectedYear = (int) $request->input('tahun', !empty($availableYears) ? $availableYears[0] : date('Y'));
@@ -43,23 +48,28 @@ class AnalisisController extends Controller
         $tahun = (int) $request->input('tahun', date('Y'));
         $jenis = $request->input('jenis', 'Ekspor');
 
-        // Query dasar transaksi berstatus RILIS
-        $baseQuery = DB::table('transactions')
-            ->join('data_batches', 'transactions.batch_id', '=', 'data_batches.batch_id')
+        // Query dasar transaksi berstatus RILIS dan isolasi sumber Distribusi
+        $baseQuery = DB::table('distribusi_transactions')
+            ->join('data_batches', 'distribusi_transactions.batch_id', '=', 'data_batches.batch_id')
             ->where('data_batches.status', 'RILIS')
-            ->where('transactions.jenis_transaksi', $jenis)
-            ->where('transactions.tahun', $tahun);
+            ->where('distribusi_transactions.tipe_sumber', 'distribusi')
+            ->where('data_batches.tipe_sumber', 'distribusi')
+            ->whereNotIn('distribusi_transactions.batch_id', function ($sub) {
+                $sub->select('batch_id')->from('trash')->whereNull('restored_at');
+            })
+            ->where('distribusi_transactions.jenis_transaksi', $jenis)
+            ->where('distribusi_transactions.tahun', $tahun);
 
-        $grandTotalFob = (clone $baseQuery)->sum('transactions.nilai') ?: 1.0;
+        $grandTotalFob = (clone $baseQuery)->sum('distribusi_transactions.nilai') ?: 1.0;
 
         // 1. Top 10 Komoditas berdasarkan Golongan HS (hs2_desc)
         $topKomoditas = (clone $baseQuery)
-            ->leftJoin('master_hs', 'transactions.hs_id', '=', 'master_hs.hs_id')
+            ->leftJoin('master_hs', 'distribusi_transactions.hs_id', '=', 'master_hs.hs_id')
             ->select(
                 DB::raw("COALESCE(master_hs.hs2, 'LAIN') as hs2"),
                 DB::raw("COALESCE(master_hs.hs2_desc, 'Lain-lain') as komoditas"),
-                DB::raw("SUM(transactions.nilai) as total_fob"),
-                DB::raw("SUM(transactions.berat) as total_berat")
+                DB::raw("SUM(distribusi_transactions.nilai) as total_fob"),
+                DB::raw("SUM(distribusi_transactions.berat) as total_berat")
             )
             ->groupBy('hs2', 'komoditas')
             ->orderByDesc('total_fob')
@@ -74,12 +84,12 @@ class AnalisisController extends Controller
 
         // 2. Top 10 Negara Mitra Dagang Utama
         $topNegara = (clone $baseQuery)
-            ->leftJoin('master_negara', 'transactions.negara_id', '=', 'master_negara.negara_id')
+            ->leftJoin('master_negara', 'distribusi_transactions.negara_id', '=', 'master_negara.negara_id')
             ->select(
                 DB::raw("COALESCE(master_negara.nama_negara, 'Lainnya') as negara"),
                 DB::raw("COALESCE(master_negara.kode_negara, 'OTH') as kode_negara"),
-                DB::raw("SUM(transactions.nilai) as total_fob"),
-                DB::raw("SUM(transactions.berat) as total_berat")
+                DB::raw("SUM(distribusi_transactions.nilai) as total_fob"),
+                DB::raw("SUM(distribusi_transactions.berat) as total_berat")
             )
             ->groupBy('negara', 'kode_negara')
             ->orderByDesc('total_fob')
@@ -94,11 +104,11 @@ class AnalisisController extends Controller
 
         // 3. Kontribusi Pelabuhan Muat/Bongkar
         $topPelabuhan = (clone $baseQuery)
-            ->leftJoin('master_pelabuhan', 'transactions.pelabuhan_id', '=', 'master_pelabuhan.pelabuhan_id')
+            ->leftJoin('master_pelabuhan', 'distribusi_transactions.pelabuhan_id', '=', 'master_pelabuhan.pelabuhan_id')
             ->select(
                 DB::raw("COALESCE(master_pelabuhan.nama_pelabuhan, 'Lainnya') as pelabuhan"),
-                DB::raw("SUM(transactions.nilai) as total_fob"),
-                DB::raw("SUM(transactions.berat) as total_berat")
+                DB::raw("SUM(distribusi_transactions.nilai) as total_fob"),
+                DB::raw("SUM(distribusi_transactions.berat) as total_berat")
             )
             ->groupBy('pelabuhan')
             ->orderByDesc('total_fob')
@@ -111,8 +121,8 @@ class AnalisisController extends Controller
                 return $item;
             });
 
-        // 4. Metrik resmi Dashboard
-        $metrics = $this->statService->getOfficialDashboardMetrics($tahun, $jenis);
+        // 4. Metrik resmi Dashboard (hanya RILIS & non-Trash selaras dengan $baseQuery di atas)
+        $metrics = $this->statService->getOfficialDashboardMetrics($tahun, $jenis, 'distribusi', ['RILIS']);
 
         return response()->json([
             'success' => true,
