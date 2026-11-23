@@ -1,1162 +1,1783 @@
 @extends('layouts.app')
 
-@section('title', 'Manajemen Upload Data | SIDATEX')
+@section('title', 'Unggah Data | SIDATEX BPS Provinsi Riau')
 
 @section('content')
-
-<!-- MEMINDAHKAN STYLE & SCRIPT KE DALAM CONTENT AGAR PASTI TERBACA OLEH BROWSER -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-<!-- TAMBAHAN LIBRARY CHART.JS UNTUK GRAFIK -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<style>
-    /* LAYOUT HALAMAN DASHBOARD */
-    .module-container { display: flex; gap: 1.5rem; min-height: calc(100vh - 100px); }
-
-    .action-sidebar { width: 250px; background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 16px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); flex-shrink: 0; }
-    .action-title { font-size: 1.25rem; font-weight: 800; font-style: italic; color: #1e293b; margin-bottom: 1rem; text-align: center; }
-    .btn-action { width: 100%; padding: 0.8rem; background-color: #1877f2; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 6px rgba(24, 119, 242, 0.3); }
-    .btn-action:hover { background-color: #145dbf; transform: translateY(-2px); }
-    .btn-action:disabled { background-color: #94a3b8; cursor: not-allowed; box-shadow: none; transform: none; }
-
-    .preview-area { flex-grow: 1; min-width: 0; background-color: rgba(241, 245, 249, 0.5); border-radius: 16px; padding: 1.5rem; position: relative; display: flex; flex-direction: column; gap: 1.5rem; }
-    .preview-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(4px); z-index: 10; display: flex; align-items: center; justify-content: center; border-radius: 16px; flex-direction: column; }
-
-    /* MODAL MULTI-STEP (POPUP) */
-    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(5px); align-items: center; justify-content: center; }
-    .modal-content { background-color: #fff; padding: 2.5rem; border-radius: 20px; width: 100%; max-width: 900px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); position: relative; }
-
-    .btn-back-circle { position: absolute; top: -15px; left: -15px; width: 40px; height: 40px; background: white; border: 2px solid #ef4444; border-radius: 50%; color: #ef4444; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-weight: bold; }
-
-    .step-container { display: none; }
-    .step-container.active { display: block; }
-
-    /* LANGKAH 1 */
-    .step1-header { margin-bottom: 2rem; border-bottom: 1px solid #cbd5e1; padding-bottom: 1rem; }
-    .step1-header h3 { margin: 0; font-size: 1.5rem; color: #1e293b; font-weight: 500; }
-    .step1-header p { margin: 0.2rem 0 0 0; color: #64748b; font-size: 0.9rem; }
-
-    .upload-box-large { background: #fae8e8; border: 1px solid #fecaca; border-radius: 16px; padding: 3rem 2rem; text-align: center; position: relative; }
-    .excel-icon-large { width: 60px; margin-bottom: 1rem; }
-    .upload-box-text { font-weight: 700; color: #1e293b; font-size: 1.1rem; margin-bottom: 0.5rem; }
-    .upload-box-sub { color: #64748b; font-size: 0.9rem; margin-bottom: 1.5rem; }
-
-    .btn-pilih-file { background: white; border: 1px solid #10b981; color: #10b981; padding: 0.5rem 1.5rem; border-radius: 20px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; }
-    .btn-upload-step1 { width: 100%; background: #6366f1; color: white; border: none; padding: 1rem; border-radius: 8px; font-size: 1rem; font-weight: 600; margin-top: 1.5rem; cursor: pointer; box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3); }
-
-    /* LANGKAH 2 */
-    .modal-header-filter { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 1.5rem; }
-    .modal-title-box h3 { margin: 0; font-size: 1.8rem; color: #1e293b; font-weight: 500; }
-    .modal-title-box p { margin: 0.5rem 0 0 0; color: #64748b; font-size: 1rem; }
-
-    .total-baris-box { background: #fff; border: 1px solid #94a3b8; border-radius: 10px; padding: 0.5rem 1.5rem; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-    .total-baris-label { display: block; font-size: 0.85rem; color: #475569; margin-bottom: 0.2rem; }
-    .total-baris-value { display: block; font-size: 2rem; font-weight: 800; color: #000; line-height: 1; }
-
-    .file-banner { display: flex; justify-content: space-between; align-items: center; background-color: #fce4e4; border: 1px solid #fecaca; border-radius: 10px; padding: 1rem 1.5rem; margin-bottom: 2rem; }
-    .file-banner-info { display: flex; align-items: center; gap: 1rem; color: #475569; font-size: 1rem; }
-    .file-banner-info strong { color: #000; font-weight: 500; }
-    .ganti-file-link { color: #2563eb; text-decoration: underline; font-weight: 600; cursor: pointer; }
-
-    .filter-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 2.5rem; }
-    .filter-group label { display: block; font-size: 0.9rem; color: #1e293b; margin-bottom: 0.5rem; }
-    .filter-group select { width: 100%; padding: 0.8rem 1rem; border: 1px solid #cbd5e1; border-radius: 10px; background-color: #fff; font-size: 0.95rem; color: #475569; appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1em; }
-
-    /* CUSTOM SELECT2 AGAR MENYATU DENGAN DESAIN ASLI */
-    .select2-container .select2-selection--multiple {
-        min-height: 44px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 4px; background-image: none;
-    }
-    .select2-container--default .select2-selection--multiple .select2-selection__choice {
-        background-color: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; border-radius: 6px; padding: 2px 8px; margin-top: 4px;
-    }
-
-    .modal-footer { display: flex; justify-content: space-between; align-items: center; }
-    .btn-kembali { background-color: #94a3b8; color: #fff; border: none; padding: 0.8rem 2rem; border-radius: 8px; font-size: 1rem; cursor: pointer; }
-    .footer-right { display: flex; gap: 1rem; }
-    .btn-reset-filter { background-color: #e2e8f0; color: #ef4444; border: 1px solid #cbd5e1; padding: 0.8rem 1.5rem; border-radius: 8px; font-size: 1rem; cursor: pointer; }
-    .btn-lanjutkan { background-color: #007bff; color: #fff; border: none; padding: 0.8rem 2rem; border-radius: 8px; font-size: 1rem; font-weight: 500; cursor: pointer; }
-
-    /* DASHBOARD PRATINJAU */
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; width: 100%; }
-    .glass-card { background: rgba(255,255,255,0.9); padding: 1rem; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-    .stat-val { font-size: clamp(1.4rem, 2.5vw, 2.2rem); font-weight: 800; margin-top: 0.5rem; word-break: break-word; }
-    .chart-container { background: rgba(255,255,255,0.9); border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); flex-grow: 1; display: flex; align-items: center; justify-content: center; min-width: 0; width: 100%; }
-
-    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-</style>
-
-<!-- Banner Notifikasi Server-Side -->
-@if(session('success'))
-<div class="alert-box alert-success" id="server-alert-success" style="margin-bottom: 1.5rem; padding: 1rem 1.5rem; background-color: #d1fae5; border: 1px solid #6ee7b7; color: #065f46; border-radius: 12px; display: flex; align-items: center; justify-content: space-between;">
-    <div style="display: flex; align-items: center; gap: 0.75rem;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-        <span>{{ session('success') }}</span>
+<div class="upload-page-wrapper">
+    <!-- Header Standar BPS -->
+    <div class="upload-header-card">
+        <div class="header-content-left">
+            <div class="header-badge-instansi">
+                <span class="badge-dot"></span>
+                <span>BPS PROVINSI RIAU &mdash; SISTEM PENGELOLAAN DATA STATISTIK EKSPOR-IMPOR</span>
+            </div>
+            <h1 class="header-page-title">Unggah Data Ekspor-Impor</h1>
+            <p class="header-page-subtitle">
+                Unggah dan proses berkas data mentah DBF atau lembar kerja Excel resmi BPS untuk menghasilkan data mart statistik yang terverifikasi dan siap dianalisis.
+            </p>
+        </div>
+        <div class="header-content-right">
+            <div class="header-meta-box">
+                <span class="meta-label">Format Didukung</span>
+                <span class="meta-value">.DBF (dBase III/IV), .XLSX, .XLS</span>
+            </div>
+            <div class="header-meta-box">
+                <span class="meta-label">Batas Ukuran</span>
+                <span class="meta-value">Maksimal 50 MB / Berkas</span>
+            </div>
+        </div>
     </div>
-    <a href="{{ route('manajemen-data') }}" style="color: #047857; font-weight: 700; text-decoration: underline;">Buka Manajemen Data &rarr;</a>
-</div>
-@endif
 
-@if(session('error') || $errors->any())
-<div class="alert-box alert-error" id="server-alert-error" style="margin-bottom: 1.5rem; padding: 1rem 1.5rem; background-color: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; border-radius: 12px; display: flex; align-items: center; gap: 0.75rem;">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-    <span>{{ session('error') ?? $errors->first() }}</span>
-</div>
-@endif
+    <!-- Stepper 6 Langkah Proses -->
+    <div class="stepper-container">
+        <div class="stepper-step active" id="step-node-1" data-step="1">
+            <div class="step-circle">1</div>
+            <div class="step-label-group">
+                <span class="step-label-title">Pilih Berkas</span>
+                <span class="step-label-desc">Unggah DBF / Excel</span>
+            </div>
+        </div>
+        <div class="stepper-line" id="step-line-1"></div>
 
-<!-- Banner Notifikasi Dinamis (Client-Side AJAX) -->
-<div id="dynamic-notification" style="display: none; margin-bottom: 1.5rem; padding: 1rem 1.5rem; border-radius: 12px; font-weight: 500; align-items: center; justify-content: space-between; gap: 1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.05); transition: all 0.3s ease;">
-    <div style="display: flex; align-items: center; gap: 0.75rem;" id="dynamic-notification-text"></div>
-    <div id="dynamic-notification-action"></div>
-</div>
+        <div class="stepper-step" id="step-node-2" data-step="2">
+            <div class="step-circle">2</div>
+            <div class="step-label-group">
+                <span class="step-label-title">Pemeriksaan Berkas</span>
+                <span class="step-label-desc">Integritas Struktur</span>
+            </div>
+        </div>
+        <div class="stepper-line" id="step-line-2"></div>
 
-<div class="module-container">
+        <div class="stepper-step" id="step-node-3" data-step="3">
+            <div class="step-circle">3</div>
+            <div class="step-label-group">
+                <span class="step-label-title">Validasi & Pemetaan</span>
+                <span class="step-label-desc">Master HS & Wilayah</span>
+            </div>
+        </div>
+        <div class="stepper-line" id="step-line-3"></div>
 
-    <!-- PANEL KIRI -->
-    <aside class="action-sidebar">
-        <h2 class="action-title">Upload Data</h2>
+        <div class="stepper-step" id="step-node-4" data-step="4">
+            <div class="step-circle">4</div>
+            <div class="step-label-group">
+                <span class="step-label-title">Pratinjau Data</span>
+                <span class="step-label-desc">Evaluasi Kualitas</span>
+            </div>
+        </div>
+        <div class="stepper-line" id="step-line-4"></div>
 
-        <button type="button" class="btn-action" id="btn-open-modal">Upload Data</button>
+        <div class="stepper-step" id="step-node-5" data-step="5">
+            <div class="step-circle">5</div>
+            <div class="step-label-group">
+                <span class="step-label-title">Pengolahan & Agregasi</span>
+                <span class="step-label-desc">Two-Tier Data Mart</span>
+            </div>
+        </div>
+        <div class="stepper-line" id="step-line-5"></div>
 
-        <!-- Form Utama ke Backend -->
-        <form action="{{ route('upload.process') }}" method="POST" id="form-simpan" enctype="multipart/form-data">
+        <div class="stepper-step" id="step-node-6" data-step="6">
+            <div class="step-circle">6</div>
+            <div class="step-label-group">
+                <span class="step-label-title">Penyimpanan Hasil</span>
+                <span class="step-label-desc">Tersimpan di Sistem</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Notifikasi Global -->
+    <div id="alertNotification" class="alert-box" style="display: none;">
+        <div class="alert-icon" id="alertIcon"></div>
+        <div class="alert-body">
+            <h4 class="alert-title" id="alertTitle">Notifikasi</h4>
+            <p class="alert-message" id="alertMessage">Pesan notifikasi.</p>
+        </div>
+        <button type="button" class="alert-close" onclick="closeAlert()">&times;</button>
+    </div>
+
+    <!-- TAHAP 1: FORM PENGATURAN & AREA UNGGAH -->
+    <div id="cardStageUpload" class="content-card">
+        <div class="card-header-bar">
+            <div class="card-header-left">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0066cc" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                <h2 class="card-title">1. Pengaturan dan Pemilihan Berkas</h2>
+            </div>
+            <span class="badge-role-required">Khusus Peran Super Admin</span>
+        </div>
+
+        <form id="formUploadData" enctype="multipart/form-data">
             @csrf
 
-            <input type="file" name="excel_file_final" id="excel_file_final" style="display: none;">
-            <input type="hidden" name="jenis_data_final" id="jenis_data_final">
-            <input type="hidden" name="tahun_final" id="tahun_final">
-            <input type="hidden" name="bulan_final" id="bulan_final">
-            <input type="hidden" name="status_final" id="status_final" value="Private">
+            <!-- Konfigurasi Parameter Data -->
+            <div class="config-grid-3">
+                <!-- Sumber Data -->
+                <div class="form-group-box">
+                    <label class="form-label-custom">Sumber Metodologi Data <span class="text-danger">*</span></label>
+                    <div class="toggle-segmented">
+                        <label class="segmented-option">
+                            <input type="radio" name="sumber_data_final" value="distribusi" checked id="sumber_distribusi">
+                            <span class="segmented-btn">
+                                <strong>Distribusi</strong>
+                                <small>Pelabuhan Muat / Bongkar (POD/KDPROV)</small>
+                            </span>
+                        </label>
+                        <label class="segmented-option">
+                            <input type="radio" name="sumber_data_final" value="neraca" id="sumber_neraca">
+                            <span class="segmented-btn">
+                                <strong>Neraca</strong>
+                                <small>Asal Barang / Bea Cukai (PROVORIG/KPPBC)</small>
+                            </span>
+                        </label>
+                    </div>
+                </div>
 
-            <!-- Tambahan hidden input untuk Provinsi, Kabkota, Negara, dan HS Code -->
-            <input type="hidden" name="provinsi_final" id="provinsi_final">
-            <input type="hidden" name="kabkota_final" id="kabkota_final">
-            <input type="hidden" name="negara_final" id="negara_final">
-            <input type="hidden" name="hscode_final" id="hscode_final">
+                <!-- Jenis Transaksi -->
+                <div class="form-group-box">
+                    <label class="form-label-custom">Jenis Transaksi Perdagangan <span class="text-danger">*</span></label>
+                    <div class="toggle-segmented">
+                        <label class="segmented-option">
+                            <input type="radio" name="jenis_data_final" value="Ekspor" checked id="jenis_ekspor">
+                            <span class="segmented-btn">
+                                <strong>Ekspor (FOB)</strong>
+                                <small>Pengiriman ke Luar Negeri</small>
+                            </span>
+                        </label>
+                        <label class="segmented-option">
+                            <input type="radio" name="jenis_data_final" value="Impor" id="jenis_impor">
+                            <span class="segmented-btn">
+                                <strong>Impor (CIF)</strong>
+                                <small>Pemasukan dari Luar Negeri</small>
+                            </span>
+                        </label>
+                    </div>
+                </div>
 
-            <button type="button" class="btn-action" id="btn-apply" disabled>Apply</button>
-            <button type="submit" class="btn-action" id="btn-simpan" style="width: 100%; margin-top: 1rem;" disabled>Simpan</button>
-        </form>
-
-        <button type="button" class="btn-action" id="btn-reset">Reset</button>
-    </aside>
-
-    <!-- PANEL KANAN (PRATINJAU) -->
-    <main class="preview-area">
-        <div class="preview-overlay" id="preview-overlay">
-            <svg width="50" height="50" fill="none" stroke="#94a3b8" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-            <h3 style="color: #475569; margin-top: 1rem;">Area Pratinjau Kosong</h3>
-            <p style="color: #94a3b8; font-size: 0.9rem;">Klik "Upload Data" dan "Apply" untuk melihat visualisasi data.</p>
-        </div>
-
-        <div class="stats-grid">
-            <div class="glass-card"><div style="color: #475569; font-weight:600;">M-To-M</div><div class="stat-val" id="val-mtom" style="color: #2563eb;">00%</div></div>
-            <div class="glass-card"><div style="color: #475569; font-weight:600;">Q-To-Q</div><div class="stat-val" id="val-qtoq" style="color: #10b981;">00%</div></div>
-            <div class="glass-card"><div style="color: #475569; font-weight:600;">Y-on-Y</div><div class="stat-val" id="val-yony" style="color: #f59e0b;">00%</div></div>
-            <div class="glass-card"><div style="color: #475569; font-weight:600;">C-To-C</div><div class="stat-val" id="val-ctoc" style="color: #ef4444;">00%</div></div>
-        </div>
-
-        <!-- Wadah Grafik Chart.js -->
-        <div class="chart-container">
-            <div style="width: 100%; height: 350px; position: relative;">
-                <canvas id="previewChart"></canvas>
+                <!-- Status Target Publikasi -->
+                <div class="form-group-box">
+                    <label class="form-label-custom">Status Awal Data Disimpan <span class="text-danger">*</span></label>
+                    <div class="toggle-segmented">
+                        <label class="segmented-option">
+                            <input type="radio" name="status_final" value="PRIVATE" checked id="status_private">
+                            <span class="segmented-btn">
+                                <strong>Internal (Private)</strong>
+                                <small>Telaah Internal BPS & Eksekutif</small>
+                            </span>
+                        </label>
+                        <label class="segmented-option">
+                            <input type="radio" name="status_final" value="RILIS" id="status_rilis">
+                            <span class="segmented-btn">
+                                <strong>Rilis Publik</strong>
+                                <small>Dapat Diakses Seluruh Pegawai</small>
+                            </span>
+                        </label>
+                    </div>
+                </div>
             </div>
-        </div>
-    </main>
 
-</div>
+            <!-- Dropzone Area -->
+            <div class="dropzone-container" id="dropzoneContainer">
+                <input type="file" id="realFileInput" name="excel_file_final" class="file-input-hidden" accept=".dbf,.xlsx,.xls">
 
-<!-- MODAL POPUP -->
-<div id="uploadModal" class="modal">
-    <div class="modal-content">
-        <button class="btn-back-circle" id="btn-close-modal" title="Tutup Modal">&times;</button>
+                <div class="dropzone-content-initial" id="dropzoneInitial">
+                    <div class="dropzone-icon-circle">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0066cc" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                    </div>
+                    <h3 class="dropzone-title">Tarik dan letakkan berkas di sini, atau klik tombol untuk memilih berkas</h3>
+                    <p class="dropzone-subtitle">Mendukung berkas DBF mentah dari BPS RI (misal: <code>14_Atap_ekspor_2608_POD_based.DBF</code>) dan berkas Excel (.xlsx / .xls)</p>
+                    <button type="button" class="btn-browse-file" onclick="document.getElementById('realFileInput').click()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        Pilih Berkas Komputer
+                    </button>
+                </div>
 
-        <!-- LANGKAH 1 -->
-        <div id="step1" class="step-container active">
-            <div class="step1-header">
-                <h3>Langkah 1 - Upload File Excel</h3>
-                <p>Unggah file data ekspor dan impor dalam format Microsoft Excel (.xlsx)</p>
+                <!-- Dropzone Selected File View -->
+                <div class="dropzone-content-selected" id="dropzoneSelected" style="display: none;">
+                    <div class="selected-file-card">
+                        <div class="selected-file-icon">
+                            <span id="badgeFileExt" class="badge-ext">DBF</span>
+                        </div>
+                        <div class="selected-file-details">
+                            <h4 id="displayFileName" class="selected-file-name">nama_berkas.dbf</h4>
+                            <div class="selected-file-meta">
+                                <span id="displayFileSize" class="meta-item">0 KB</span>
+                                <span class="meta-separator">&bull;</span>
+                                <span id="displayFileType" class="meta-item">Format dBase Database</span>
+                                <span class="meta-separator">&bull;</span>
+                                <span class="meta-item text-success">Berkas Siap Diperiksa</span>
+                            </div>
+                        </div>
+                        <div class="selected-file-actions">
+                            <button type="button" class="btn-action-outline" onclick="document.getElementById('realFileInput').click()">
+                                Ganti Berkas
+                            </button>
+                            <button type="button" class="btn-action-danger" onclick="cancelSelectedFile()">
+                                Batalkan
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div class="upload-box-large">
-                <svg class="excel-icon-large" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect width="24" height="24" rx="4" fill="#107C41"/>
-                    <path d="M15.5 17H13.5L12 12.5L10.5 17H8.5L11 11L8.5 5H10.5L12 9.5L13.5 5H15.5L13 11L15.5 17Z" fill="white"/>
-                </svg>
-                <div class="upload-box-text">Seret & Lepas File Excel Disini....</div>
-                <div class="upload-box-sub">atau klik tombol dibawah untuk memilih file...</div>
-
-                <input type="file" id="real-file-input" accept=".xlsx, .xls" style="display: none;">
-
-                <button type="button" class="btn-pilih-file" onclick="document.getElementById('real-file-input').click()">
-                    <span style="background:#107C41; color:white; padding: 2px 6px; border-radius:4px; font-size:0.8rem;">X</span> Pilih File Excel...
+            <!-- Tombol Submit Tahap 1 -->
+            <div class="form-actions-row">
+                <a href="{{ route('manajemen-data') }}" class="btn-nav-back">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    Kembali ke Manajemen Data
+                </a>
+                <button type="button" id="btnPeriksaBerkas" class="btn-primary-action" disabled onclick="executePreview()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    Periksa & Pratinjau Berkas
                 </button>
-                <div id="selected-file-name" style="margin-top: 0.75rem; color: #2563eb; font-weight: bold; display: none;"></div>
+            </div>
+        </form>
+    </div>
 
-                <div style="margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.35rem; text-align: left; max-width: 320px; margin-left: auto; margin-right: auto;">
-                    <label for="step1_jenis_data" style="font-size: 0.85rem; font-weight: 600; color: #334155;">Jenis Data Transaksi:</label>
-                    <select id="step1_jenis_data" style="width: 100%; padding: 0.5rem 0.75rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; font-weight: 500; background-color: #fff; color: #1e293b; cursor: pointer;">
-                        <option value="Ekspor">Ekspor</option>
-                        <option value="Impor">Impor</option>
-                    </select>
-                </div>
+    <!-- TAHAP 2 & 3: ANIMASI PEMERIKSAAN & VALIDASI -->
+    <div id="cardStageInspecting" class="content-card" style="display: none;">
+        <div class="inspection-container">
+            <div class="inspection-spinner"></div>
+            <h3 class="inspection-title" id="inspectionStatusText">Memeriksa Integritas & Memetakan Berkas...</h3>
+            <p class="inspection-subtitle" id="inspectionSubtext">Engine validasi BRS sedang membaca header, memverifikasi struktur kolom, dan memetakan kode HS terhadap master data.</p>
+
+            <div class="progress-track">
+                <div class="progress-bar-fill" id="inspectionProgressBar" style="width: 25%;"></div>
             </div>
 
-            <button type="button" class="btn-upload-step1" id="btn-to-step2">Upload</button>
+            <div class="inspection-checklist">
+                <div class="check-item active" id="chk-header">
+                    <span class="check-icon">&#10003;</span>
+                    <span>Pemeriksaan byte header dan format berkas</span>
+                </div>
+                <div class="check-item" id="chk-columns">
+                    <span class="check-icon">&#10003;</span>
+                    <span>Validasi ketersediaan kolom kunci BPS (HS, Nilai, Berat, Pelabuhan, Negara)</span>
+                </div>
+                <div class="check-item" id="chk-master">
+                    <span class="check-icon">&#10003;</span>
+                    <span>Pencocokan Master Komoditas (Master HS BPS & Sektor)</span>
+                </div>
+                <div class="check-item" id="chk-aggregation">
+                    <span class="check-icon">&#10003;</span>
+                    <span>Kalkulasi indikator awal & verifikasi duplikasi batch</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAHAP 4: PANEL PRATINJAU & EVALUASI KUALITAS DATA -->
+    <div id="cardStagePreview" class="content-card" style="display: none;">
+        <div class="card-header-bar">
+            <div class="card-header-left">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0066cc" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                <h2 class="card-title">4. Pratinjau & Kualitas Data Sebelum Disimpan</h2>
+            </div>
+            <div class="header-tags-group">
+                <span id="badgePreviewSumber" class="badge-tag-blue">DISTRIBUSI</span>
+                <span id="badgePreviewJenis" class="badge-tag-indigo">EKSPOR</span>
+                <span id="badgePreviewPeriode" class="badge-tag-slate">BULAN 8 / 2026</span>
+            </div>
         </div>
 
-        <!-- LANGKAH 2 -->
-        <div id="step2" class="step-container">
-            <div class="modal-header-filter">
-                <div class="modal-title-box">
-                    <h3>Langkah 2 - Filtering Data</h3>
-                    <p>Tentukan cakupan data yang akan diproses dari file yang akan diupload...</p>
-                </div>
-                <div class="total-baris-box">
-                    <span class="total-baris-label">Total Baris</span>
-                    <span class="total-baris-value" id="display-total-baris">0</span>
-                </div>
+        <!-- Banner Peringatan Duplikasi / Unmapped jika ada -->
+        <div id="bannerDuplikasi" class="banner-warning" style="display: none;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <div>
+                <strong>Peringatan Duplikasi Periode:</strong>
+                <span id="textDuplikasi">Periode ini sudah pernah tersimpan di sistem. Data yang sudah ada tidak boleh ditimpa tanpa verifikasi.</span>
             </div>
-
-            <div class="file-banner">
-                <div class="file-banner-info">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                        <rect width="24" height="24" rx="4" fill="#107C41"/>
-                        <path d="M15.5 17H13.5L12 12.5L10.5 17H8.5L11 11L8.5 5H10.5L12 9.5L13.5 5H15.5L13 11L15.5 17Z" fill="white"/>
-                    </svg>
-                    <span><strong id="display-nama-file">Nama_File.xlsx</strong>
-                    <span id="display-info-file">0 baris - 0 kolom - 0 MB</span></span>
-                </div>
-                <a class="ganti-file-link" id="btn-ganti-file">Ganti File</a>
-            </div>
-
-            <!-- Form Filter dengan Data Database -->
-           <form id="filtering-form">
-                <div class="filter-grid">
-                    <div class="filter-group">
-                        <label>Jenis Data</label>
-                        <select id="filter_jenis" name="jenis_data">
-                            <option value="Ekspor">Ekspor</option>
-                            <option value="Impor">Impor</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label>Tahun</label>
-                        <select id="filter_tahun" name="tahun">
-                            @for($y = date('Y'); $y >= 2020; $y--)
-                            <option value="{{ $y }}">{{ $y }}</option>
-                            @endfor
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label>Bulan</label>
-                        <select id="filter_bulan" name="bulan">
-                            <option value="1">Januari</option>
-                            <option value="2">Februari</option>
-                            <option value="3">Maret</option>
-                            <option value="4">April</option>
-                            <option value="5">Mei</option>
-                            <option value="6">Juni</option>
-                            <option value="7">Juli</option>
-                            <option value="8">Agustus</option>
-                            <option value="9">September</option>
-                            <option value="10">Oktober</option>
-                            <option value="11">November</option>
-                            <option value="12">Desember</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label>Provinsi</label>
-                        <select id="filter_provinsi" name="provinsi_id">
-                            <option value="">-- Semua Provinsi --</option>
-                            @foreach($provinsis ?? [] as $prov)
-                            <option value="{{ $prov->provinsi_id }}">{{ $prov->nama_provinsi }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label>Kabupaten/Kota</label>
-                        <select id="filter_kabkota" name="kabkota_id">
-                            <option value="">-- Semua Kab/Kota --</option>
-                            @foreach($kabkotas ?? [] as $kab)
-                            <option value="{{ $kab->kabkota_id }}">{{ $kab->nama_kabkota }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label>Public/Pending</label>
-                        <select id="filter_status" name="status">
-                            <option value="Pending" selected>Pending</option>
-                            <option value="Public">Public</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label>Negara (Bisa pilih >1)</label>
-                        <select id="filter_negara" name="negara_id[]" multiple="multiple" style="width: 100%">
-                            <option value="ALL">-- Semua Negara --</option>
-                            @foreach($negaras ?? [] as $neg)
-                            <option value="{{ $neg->kode_negara ?? $neg->negara_id }}">{{ $neg->nama_negara }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="filter-group" style="grid-column: span 2;">
-                        <label>HS CODE (Bisa pilih >1)</label>
-                        <select id="filter_hscode" name="hs_code[]" multiple="multiple" style="width: 100%">
-                            <option value="ALL">-- Semua HS Code --</option>
-                            @foreach($hs_codes ?? [] as $hs)
-                                <option value="{{ str_pad($hs->hs2, 2, '0', STR_PAD_LEFT) }}">
-                                    {{ str_pad($hs->hs2, 2, '0', STR_PAD_LEFT) }} — {{$hs->hs2_desc }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                </div>
-
-                <div class="modal-footer">
-                    <button type="button" class="btn-kembali" id="btn-back-sep1">Kembali...</button>
-                    <div class="footer-right">
-                        <button type="button" class="btn-reset-filter" id="btn-reset-filter">Reset Filter...</button>
-                        <button type="button" class="btn-lanjutkan" id="btn-lanjutkan">Simpan</button>
-                    </div>
-                </div>
-            </form>
         </div>
 
+        <div id="bannerUnmapped" class="banner-warning" style="display: none;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <div>
+                <strong>Catatan Pemetaan Master:</strong>
+                <span id="textUnmapped">Ditemukan kode komoditas/wilayah yang belum terdaftar pada master. Kode asli tetap dipertahankan dan diberi tanda status unmapped.</span>
+            </div>
+        </div>
+
+        <!-- Ringkasan KPI Data Hasil Pengolahan -->
+        <div class="kpi-summary-grid">
+            <div class="kpi-card">
+                <span class="kpi-card-title">Total Baris Transaksi</span>
+                <div class="kpi-card-value" id="kpiTotalBaris">0</div>
+                <div class="kpi-card-sub" id="kpiBarisValidDesc">
+                    <span class="text-success" id="kpiBarisValid">0 Valid</span> &bull; <span class="text-danger" id="kpiBarisInvalid">0 Gagal</span>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <span class="kpi-card-title">Estimasi Nilai Total</span>
+                <div class="kpi-card-value" id="kpiTotalNilai">US$ 0,00 Juta</div>
+                <div class="kpi-card-sub text-muted" id="kpiTotalNilaiExact">US$ 0.000000</div>
+            </div>
+
+            <div class="kpi-card">
+                <span class="kpi-card-title">Estimasi Berat Bersih</span>
+                <div class="kpi-card-value" id="kpiTotalBerat">0,00 Ribu Ton</div>
+                <div class="kpi-card-sub text-muted" id="kpiTotalBeratExact">0.000000 Kg</div>
+            </div>
+
+            <div class="kpi-card">
+                <span class="kpi-card-title">Proporsi Migas / Non-Migas</span>
+                <div class="kpi-card-value" id="kpiNonMigas">US$ 0,00 Juta</div>
+                <div class="kpi-card-sub" id="kpiMigas">Migas: US$ 0,00 Juta</div>
+            </div>
+        </div>
+
+        <!-- Tabel Sampel Baris Data Transaksi -->
+        <div class="table-section-box">
+            <div class="table-section-header">
+                <h3 class="table-section-title">Sampel Baris Data Terverifikasi (10 Baris Pertama)</h3>
+                <span class="table-section-hint">Data ini merupakan hasil parsing dan validasi langsung dari berkas asli</span>
+            </div>
+
+            <div class="table-scroll-container">
+                <table class="table-custom" id="tablePreviewSample">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">No</th>
+                            <th>Kode HS</th>
+                            <th>Uraian Komoditas</th>
+                            <th>Negara Mitra</th>
+                            <th>Pelabuhan / Pintu</th>
+                            <th style="text-align: right;">Nilai (USD)</th>
+                            <th style="text-align: right;">Berat Netto (Kg)</th>
+                            <th style="text-align: center;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyPreviewSample">
+                        <tr>
+                            <td colspan="8" style="text-align: center; color: #94a3b8; padding: 2rem;">Belum ada data pratinjau yang dimuat.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tombol Aksi Pratinjau -->
+        <div class="form-actions-row">
+            <button type="button" class="btn-nav-back" onclick="backToUploadStage()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                Ganti Berkas / Pengaturan
+            </button>
+            <div class="action-btn-group">
+                <button type="button" id="btnSimpanDatabase" class="btn-success-action" onclick="showConfirmSaveModal()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                    Simpan & Proses ke Basis Data
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAHAP 5: ANIMASI PENGOLAHAN DUA TIER MART -->
+    <div id="cardStageProcessing" class="content-card" style="display: none;">
+        <div class="inspection-container">
+            <div class="inspection-spinner"></div>
+            <h3 class="inspection-title">Menyimpan & Menjalankan Agregasi Data Mart...</h3>
+            <p class="inspection-subtitle">Sistem sedang menyimpan transaksi secara chunk (500 baris/batch) dan membangun analytical mart BRS.</p>
+            <div class="progress-track">
+                <div class="progress-bar-fill progress-bar-animated" style="width: 85%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAHAP 6: HASIL PENYIMPANAN BERHASIL -->
+    <div id="cardStageSuccess" class="content-card" style="display: none;">
+        <div class="success-result-box">
+            <div class="success-icon-circle">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            </div>
+            <h2 class="success-title">Pengunggahan dan Pemrosesan Berkas Berhasil!</h2>
+            <p class="success-subtitle" id="successSummaryText">
+                Seluruh transaksi telah berhasil divalidasi, disimpan ke tabel data mart, dan diagregasi secara otomatis.
+            </p>
+
+            <div class="success-detail-grid">
+                <div class="success-detail-item">
+                    <span class="detail-label">Nomor Batch ID</span>
+                    <strong class="detail-val" id="resBatchId">Batch #--</strong>
+                </div>
+                <div class="success-detail-item">
+                    <span class="detail-label">Status Visibilitas</span>
+                    <strong class="detail-val" id="resStatus">PRIVATE</strong>
+                </div>
+                <div class="success-detail-item">
+                    <span class="detail-label">Jumlah Baris Tersimpan</span>
+                    <strong class="detail-val" id="resTotalRows">0 Transaksi</strong>
+                </div>
+                <div class="success-detail-item">
+                    <span class="detail-label">Total Nilai Perdagangan</span>
+                    <strong class="detail-val" id="resTotalNilai">US$ 0,00 Juta</strong>
+                </div>
+            </div>
+
+            <div class="success-actions-row">
+                <button type="button" class="btn-action-outline" onclick="resetToNewUpload()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    Unggah Berkas Lain
+                </button>
+                <a href="{{ route('manajemen-data') }}" class="btn-primary-action">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                    Buka Manajemen Data
+                </a>
+                <a href="{{ route('dashboard') }}" class="btn-success-action">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                    Lihat Dasbor Statistik
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- MEMINDAHKAN SCRIPT KE DALAM CONTENT AGAR LANGSUNG DIEKSEKUSI -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- Modal Konfirmasi Simpan Data -->
+<div id="modalConfirmSave" class="modal-backdrop" style="display: none;">
+    <div class="modal-dialog-box">
+        <div class="modal-dialog-header">
+            <h3 class="modal-dialog-title">Konfirmasi Penyimpanan Data</h3>
+            <button type="button" class="modal-dialog-close" onclick="closeConfirmSaveModal()">&times;</button>
+        </div>
+        <div class="modal-dialog-body">
+            <p>Anda akan memproses dan menyimpan berkas ini ke dalam basis data operasional SIDATEX.</p>
+            <div class="modal-info-summary">
+                <div class="info-row">
+                    <span class="info-k">Nama Berkas:</span>
+                    <span class="info-v" id="modalConfirmFileName">file.dbf</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-k">Sumber & Jenis:</span>
+                    <span class="info-v" id="modalConfirmScope">Distribusi &bull; Ekspor</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-k">Status Target:</span>
+                    <span class="info-v" id="modalConfirmStatus">PRIVATE</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-k">Jumlah Baris:</span>
+                    <span class="info-v" id="modalConfirmRows">0 Baris</span>
+                </div>
+            </div>
+            <p class="modal-disclaimer">
+                Data akan disimpan ke tabel transaksi operasional dan dimasukkan ke dalam agregasi analitik bulanan. Pastikan seluruh parameter telah sesuai.
+            </p>
+        </div>
+        <div class="modal-dialog-footer">
+            <button type="button" class="btn-action-outline" onclick="closeConfirmSaveModal()">Batalkan</button>
+            <button type="button" class="btn-primary-action" onclick="executeProcessSave()">
+                Konfirmasi & Simpan Sekarang
+            </button>
+        </div>
+    </div>
+</div>
 
+@push('styles')
+<style>
+    .upload-page-wrapper {
+        min-height: calc(100vh - 120px);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        color: #1e293b;
+    }
+
+    /* HEADER */
+    .upload-header-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1.5rem 1.75rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .header-content-left {
+        max-width: 680px;
+    }
+
+    .header-badge-instansi {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #0369a1;
+        background: #e0f2fe;
+        padding: 0.25rem 0.65rem;
+        border-radius: 9999px;
+        margin-bottom: 0.5rem;
+        letter-spacing: 0.04em;
+    }
+
+    .badge-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #0284c7;
+    }
+
+    .header-page-title {
+        font-size: 1.45rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0;
+        border-left: 4px solid #0066cc;
+        padding-left: 0.85rem;
+    }
+
+    .header-page-subtitle {
+        font-size: 0.88rem;
+        color: #64748b;
+        margin: 0.35rem 0 0 0;
+        padding-left: 0.85rem;
+        line-height: 1.5;
+    }
+
+    .header-content-right {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .header-meta-box {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        text-align: right;
+    }
+
+    .header-meta-box .meta-label {
+        display: block;
+        font-size: 0.72rem;
+        color: #64748b;
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+
+    .header-meta-box .meta-value {
+        display: block;
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin-top: 0.15rem;
+    }
+
+    /* STEPPER 6 LANGKAH */
+    .stepper-container {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        overflow-x: auto;
+    }
+
+    .stepper-step {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        flex-shrink: 0;
+        opacity: 0.55;
+        transition: all 0.2s ease;
+    }
+
+    .stepper-step.active {
+        opacity: 1;
+    }
+
+    .stepper-step.completed {
+        opacity: 1;
+    }
+
+    .step-circle {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #e2e8f0;
+        color: #475569;
+        font-weight: 700;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+
+    .stepper-step.active .step-circle {
+        background: #0066cc;
+        color: #ffffff;
+        box-shadow: 0 0 0 4px rgba(0, 102, 204, 0.15);
+    }
+
+    .stepper-step.completed .step-circle {
+        background: #16a34a;
+        color: #ffffff;
+    }
+
+    .step-label-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .step-label-title {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #1e293b;
+        white-space: nowrap;
+    }
+
+    .step-label-desc {
+        font-size: 0.72rem;
+        color: #64748b;
+        white-space: nowrap;
+    }
+
+    .stepper-line {
+        flex: 1;
+        min-width: 20px;
+        height: 2px;
+        background: #e2e8f0;
+        margin: 0 0.75rem;
+    }
+
+    .stepper-line.completed {
+        background: #16a34a;
+    }
+
+    /* CARD UMUM */
+    .content-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1.5rem 1.75rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .card-header-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #f1f5f9;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .card-header-left {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+    }
+
+    .card-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0;
+    }
+
+    .badge-role-required {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #b45309;
+        background: #fef3c7;
+        padding: 0.25rem 0.65rem;
+        border-radius: 9999px;
+    }
+
+    /* CONFIG GRID */
+    .config-grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+        .config-grid-3 {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .form-group-box {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+    }
+
+    .form-label-custom {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #334155;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+    }
+
+    .text-danger { color: #ef4444; }
+    .text-success { color: #16a34a; }
+    .text-muted { color: #64748b; }
+
+    .toggle-segmented {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .segmented-option input[type="radio"] {
+        display: none;
+    }
+
+    .segmented-btn {
+        display: block;
+        padding: 0.65rem 0.85rem;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 8px;
+        background: #f8fafc;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .segmented-btn strong {
+        display: block;
+        font-size: 0.85rem;
+        color: #1e293b;
+    }
+
+    .segmented-btn small {
+        display: block;
+        font-size: 0.73rem;
+        color: #64748b;
+        margin-top: 0.15rem;
+    }
+
+    .segmented-option input[type="radio"]:checked + .segmented-btn {
+        border-color: #0066cc;
+        background: #eff6ff;
+    }
+
+    .segmented-option input[type="radio"]:checked + .segmented-btn strong {
+        color: #0066cc;
+    }
+
+    /* DROPZONE */
+    .dropzone-container {
+        border: 2px dashed #cbd5e1;
+        border-radius: 12px;
+        background: #fafcff;
+        padding: 2.25rem 1.5rem;
+        text-align: center;
+        transition: all 0.2s ease;
+        margin-bottom: 1.5rem;
+        position: relative;
+    }
+
+    .dropzone-container.dragover {
+        border-color: #0066cc;
+        background: #eff6ff;
+    }
+
+    .file-input-hidden {
+        display: none;
+    }
+
+    .dropzone-icon-circle {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: #e0f2fe;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1rem;
+    }
+
+    .dropzone-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0 0 0.35rem 0;
+    }
+
+    .dropzone-subtitle {
+        font-size: 0.83rem;
+        color: #64748b;
+        margin: 0 0 1.25rem 0;
+    }
+
+    .btn-browse-file {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #0066cc;
+        color: #ffffff;
+        border: none;
+        padding: 0.65rem 1.35rem;
+        border-radius: 8px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s ease;
+    }
+
+    .btn-browse-file:hover {
+        background: #0052a3;
+    }
+
+    /* SELECTED FILE CARD */
+    .selected-file-card {
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        text-align: left;
+    }
+
+    .selected-file-icon {
+        flex-shrink: 0;
+    }
+
+    .badge-ext {
+        background: #0369a1;
+        color: #ffffff;
+        font-weight: 800;
+        font-size: 0.78rem;
+        padding: 0.4rem 0.65rem;
+        border-radius: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .selected-file-details {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .selected-file-name {
+        margin: 0;
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #0f172a;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .selected-file-meta {
+        font-size: 0.78rem;
+        color: #64748b;
+        margin-top: 0.25rem;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .selected-file-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn-action-outline {
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        color: #334155;
+        padding: 0.5rem 0.9rem;
+        border-radius: 6px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .btn-action-outline:hover {
+        background: #f1f5f9;
+        border-color: #94a3b8;
+    }
+
+    .btn-action-danger {
+        background: #ffffff;
+        border: 1px solid #fecaca;
+        color: #ef4444;
+        padding: 0.5rem 0.9rem;
+        border-radius: 6px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .btn-action-danger:hover {
+        background: #fee2e2;
+    }
+
+    /* ACTIONS ROW */
+    .form-actions-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid #f1f5f9;
+        padding-top: 1.25rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .btn-nav-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #475569;
+        text-decoration: none;
+        font-size: 0.88rem;
+        font-weight: 600;
+        padding: 0.6rem 1rem;
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        cursor: pointer;
+    }
+
+    .btn-nav-back:hover {
+        background: #f8fafc;
+        color: #0f172a;
+    }
+
+    .btn-primary-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #0066cc;
+        color: #ffffff;
+        border: none;
+        padding: 0.65rem 1.5rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        box-shadow: 0 1px 2px rgba(0, 102, 204, 0.2);
+    }
+
+    .btn-primary-action:hover:not(:disabled) {
+        background: #0052a3;
+    }
+
+    .btn-primary-action:disabled {
+        background: #cbd5e1;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    .btn-success-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #16a34a;
+        color: #ffffff;
+        border: none;
+        padding: 0.65rem 1.5rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .btn-success-action:hover {
+        background: #15803d;
+    }
+
+    /* INSPECTION & PROGRESS */
+    .inspection-container {
+        padding: 3rem 1.5rem;
+        text-align: center;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .inspection-spinner {
+        width: 44px;
+        height: 44px;
+        border: 4px solid #e2e8f0;
+        border-top-color: #0066cc;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto 1.25rem auto;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .inspection-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0 0 0.35rem 0;
+    }
+
+    .inspection-subtitle {
+        font-size: 0.85rem;
+        color: #64748b;
+        margin: 0 0 1.75rem 0;
+        line-height: 1.5;
+    }
+
+    .progress-track {
+        height: 8px;
+        background: #e2e8f0;
+        border-radius: 9999px;
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        background: #0066cc;
+        border-radius: 9999px;
+        transition: width 0.3s ease;
+    }
+
+    .progress-bar-animated {
+        animation: progressShimmer 1.5s infinite linear;
+    }
+
+    .inspection-checklist {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        text-align: left;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+    }
+
+    .check-item {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        font-size: 0.82rem;
+        color: #94a3b8;
+    }
+
+    .check-item.active {
+        color: #1e293b;
+        font-weight: 600;
+    }
+
+    .check-icon {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #e2e8f0;
+        color: #ffffff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: 800;
+    }
+
+    .check-item.active .check-icon {
+        background: #16a34a;
+    }
+
+    /* BANNERS */
+    .banner-warning {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 8px;
+        padding: 0.9rem 1.25rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        font-size: 0.85rem;
+        color: #92400e;
+        margin-bottom: 1.5rem;
+    }
+
+    /* KPI PREVIEW */
+    .header-tags-group {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .badge-tag-blue { background: #e0f2fe; color: #0369a1; padding: 0.3rem 0.7rem; border-radius: 6px; font-weight: 700; font-size: 0.75rem; }
+    .badge-tag-indigo { background: #ede9fe; color: #6d28d9; padding: 0.3rem 0.7rem; border-radius: 6px; font-weight: 700; font-size: 0.75rem; }
+    .badge-tag-slate { background: #f1f5f9; color: #475569; padding: 0.3rem 0.7rem; border-radius: 6px; font-weight: 700; font-size: 0.75rem; }
+
+    .kpi-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+        .kpi-summary-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    .kpi-card {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+    }
+
+    .kpi-card-title {
+        display: block;
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .kpi-card-value {
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0.35rem 0 0.15rem 0;
+    }
+
+    .kpi-card-sub {
+        font-size: 0.76rem;
+    }
+
+    /* TABLE SECTION */
+    .table-section-box {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+    }
+
+    .table-section-header {
+        background: #f8fafc;
+        padding: 0.75rem 1.25rem;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .table-section-title {
+        margin: 0;
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: #1e293b;
+    }
+
+    .table-section-hint {
+        font-size: 0.76rem;
+        color: #64748b;
+    }
+
+    .table-scroll-container {
+        max-height: 380px;
+        overflow-y: auto;
+    }
+
+    .table-custom {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+    }
+
+    .table-custom th {
+        background: #ffffff;
+        padding: 0.65rem 0.9rem;
+        text-align: left;
+        font-weight: 700;
+        color: #475569;
+        border-bottom: 2px solid #e2e8f0;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+
+    .table-custom td {
+        padding: 0.65rem 0.9rem;
+        border-bottom: 1px solid #f1f5f9;
+        color: #334155;
+    }
+
+    .table-custom tr:hover td {
+        background: #f8fafc;
+    }
+
+    /* SUCCESS RESULT CARD */
+    .success-result-box {
+        padding: 3rem 1.5rem;
+        text-align: center;
+        max-width: 650px;
+        margin: 0 auto;
+    }
+
+    .success-icon-circle {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: #dcfce7;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.25rem;
+    }
+
+    .success-title {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0 0 0.5rem 0;
+    }
+
+    .success-subtitle {
+        font-size: 0.92rem;
+        color: #64748b;
+        margin: 0 0 2rem 0;
+        line-height: 1.6;
+    }
+
+    .success-detail-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 1.25rem;
+        margin-bottom: 2rem;
+        text-align: left;
+    }
+
+    .success-detail-item .detail-label {
+        display: block;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+    }
+
+    .success-detail-item .detail-val {
+        display: block;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-top: 0.2rem;
+    }
+
+    .success-actions-row {
+        display: flex;
+        justify-content: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    /* MODAL */
+    .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 1rem;
+    }
+
+    .modal-dialog-box {
+        background: #ffffff;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 520px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+    }
+
+    .modal-dialog-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-dialog-title {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .modal-dialog-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        color: #94a3b8;
+        cursor: pointer;
+        line-height: 1;
+    }
+
+    .modal-dialog-body {
+        padding: 1.5rem;
+        font-size: 0.88rem;
+        color: #334155;
+        line-height: 1.5;
+    }
+
+    .modal-info-summary {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.85rem 1rem;
+        margin: 1rem 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+    }
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.82rem;
+    }
+
+    .info-k { color: #64748b; }
+    .info-v { font-weight: 700; color: #0f172a; }
+
+    .modal-disclaimer {
+        font-size: 0.78rem;
+        color: #64748b;
+        margin: 0;
+    }
+
+    .modal-dialog-footer {
+        padding: 1rem 1.5rem;
+        background: #f8fafc;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+    }
+
+    /* ALERTS */
+    .alert-box {
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .alert-box.alert-error {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+    }
+
+    .alert-box.alert-success {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #166534;
+    }
+
+    .alert-body {
+        flex: 1;
+    }
+
+    .alert-title {
+        margin: 0 0 0.2rem 0;
+        font-size: 0.9rem;
+        font-weight: 700;
+    }
+
+    .alert-message {
+        margin: 0;
+        font-size: 0.82rem;
+    }
+
+    .alert-close {
+        background: none;
+        border: none;
+        font-size: 1.25rem;
+        color: inherit;
+        cursor: pointer;
+        line-height: 1;
+    }
+</style>
+@endpush
+
+@push('scripts')
 <script>
-    // Menyimpan Instance Chart.js agar bisa dihapus/dibuat ulang saat Apply ditekan
-    // Menyimpan grafik agar bisa diperbarui tanpa menumpuk grafik lama.
-    let previewChartInstance = null;
+    let activeFile = null;
+    let previewDataCache = null;
 
-    // Menyimpan data Excel hasil pembacaan untuk proses Apply.
-    let previewExcelHeaders = [];
-    let previewExcelData = [];
-    let previewExcelSheet = '';
+    // DOM Elements
+    const dropzoneContainer = document.getElementById('dropzoneContainer');
+    const realFileInput = document.getElementById('realFileInput');
+    const dropzoneInitial = document.getElementById('dropzoneInitial');
+    const dropzoneSelected = document.getElementById('dropzoneSelected');
+    const displayFileName = document.getElementById('displayFileName');
+    const displayFileSize = document.getElementById('displayFileSize');
+    const displayFileType = document.getElementById('displayFileType');
+    const badgeFileExt = document.getElementById('badgeFileExt');
+    const btnPeriksaBerkas = document.getElementById('btnPeriksaBerkas');
 
-    // INISIALISASI SELECT 2 UNTUK DROPDOWN MULTIPLE
-    $(document).ready(function() {$('#filter_negara').select2({
-            placeholder: "-- Pilih Negara --",
-            allowClear: true,
-            width: '100%'
-        });
-
-        $('#filter_hscode').select2({
-            placeholder: "-- Pilih HS Code --",
-            allowClear: true,
-            width: '100%'
-        });
+    // Drag and Drop Listeners
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropzoneContainer.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzoneContainer.classList.add('dragover');
+        }, false);
     });
 
-    document.addEventListener('DOMContentLoaded', function() {
-        const modal = document.getElementById('uploadModal');
-        const btnOpenModal = document.getElementById('btn-open-modal');
-        const btnCloseModal = document.getElementById('btn-close-modal');
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropzoneContainer.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzoneContainer.classList.remove('dragover');
+        }, false);
+    });
 
-        const btnApply = document.getElementById('btn-apply');
-        const btnSimpan = document.getElementById('btn-simpan');
-        const btnResetDashboard = document.getElementById('btn-reset');
-        const previewOverlay = document.getElementById('preview-overlay');
+    dropzoneContainer.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0) {
+            handleFileSelect(files[0]);
+        }
+    });
 
-        const step1 = document.getElementById('step1');
-        const step2 = document.getElementById('step2');
-        const fileInput = document.getElementById('real-file-input');
-        const hiddenFileInputFinal = document.getElementById('excel_file_final');
-        const selectedFileName = document.getElementById('selected-file-name');
+    realFileInput.addEventListener('change', function(e) {
+        if (this.files.length > 0) {
+            handleFileSelect(this.files[0]);
+        }
+    });
 
-        const btnToStep2 = document.getElementById('btn-to-step2');
-        const btnBackStep1 = document.getElementById('btn-back-step1');
-        const btnGantiFile = document.getElementById('btn-ganti-file');
-        const btnLanjutkan = document.getElementById('btn-lanjutkan');
-        const btnResetFilter = document.getElementById('btn-reset-filter');
+    function handleFileSelect(file) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!['dbf', 'xlsx', 'xls'].includes(ext)) {
+            showAlert('Format Berkas Tidak Didukung', 'Harap pilih berkas dengan format .dbf, .xlsx, atau .xls.', 'error');
+            return;
+        }
 
-        const displayTotalBaris = document.getElementById('display-total-baris');
-        const displayNamaFile = document.getElementById('display-nama-file');
-        const displayInfoFile = document.getElementById('display-info-file');
+        if (file.size > 52428800) { // 50MB
+            showAlert('Ukuran Berkas Terlalu Besar', 'Batas maksimal ukuran berkas adalah 50 MB.', 'error');
+            return;
+        }
 
-        let isFilterComplete = false;
+        activeFile = file;
+        displayFileName.textContent = file.name;
+        badgeFileExt.textContent = ext.toUpperCase();
 
-        btnOpenModal.addEventListener('click', () => modal.style.display = 'flex');
-        btnCloseModal.addEventListener('click', () => modal.style.display = 'none');
+        const sizeInMb = (file.size / (1024 * 1024)).toFixed(2);
+        displayFileSize.textContent = sizeInMb > 0.05 ? `${sizeInMb} MB` : `${(file.size / 1024).toFixed(0)} KB`;
+        displayFileType.textContent = ext === 'dbf' ? 'Format dBase III/IV DBF' : 'Lembar Kerja Excel';
 
-        btnBackStep1.addEventListener('click', () => { step2.classList.remove('active'); step1.classList.add('active'); });
-        btnGantiFile.addEventListener('click', () => { step2.classList.remove('active'); step1.classList.add('active'); fileInput.click(); });
+        dropzoneInitial.style.display = 'none';
+        dropzoneSelected.style.display = 'block';
+        btnPeriksaBerkas.disabled = false;
+        closeAlert();
+    }
 
-        fileInput.addEventListener('change', function(e) {
-            if(e.target.files.length > 0) {
-                const f = e.target.files[0];
-                const sizeMB = (f.size / (1024 * 1024)).toFixed(2);
+    function cancelSelectedFile() {
+        activeFile = null;
+        realFileInput.value = '';
+        dropzoneInitial.style.display = 'block';
+        dropzoneSelected.style.display = 'none';
+        btnPeriksaBerkas.disabled = true;
+    }
 
-                if (f.size > 50 * 1024 * 1024) {
-                    alert(`Ukuran file "${f.name}" (${sizeMB} MB) melebihi batas maksimal aplikasi sebesar 50 MB. Silakan pilih file lain.`);
-                    fileInput.value = '';
-                    selectedFileName.style.display = 'none';
-                    return;
-                }
+    function showAlert(title, message, type = 'error') {
+        const box = document.getElementById('alertNotification');
+        box.className = `alert-box alert-${type}`;
+        document.getElementById('alertTitle').textContent = title;
+        document.getElementById('alertMessage').textContent = message;
+        box.style.display = 'flex';
+        box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 
-                selectedFileName.style.display = 'block';
-                selectedFileName.textContent = `${f.name} (${sizeMB} MB)`;
+    function closeAlert() {
+        document.getElementById('alertNotification').style.display = 'none';
+    }
 
-                const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(f);
-                hiddenFileInputFinal.files = dataTransfer.files;
+    function updateStepperUI(stepNumber) {
+        for (let i = 1; i <= 6; i++) {
+            const node = document.getElementById(`step-node-${i}`);
+            const line = document.getElementById(`step-line-${i}`);
+
+            if (i < stepNumber) {
+                node.className = 'stepper-step completed';
+                if (line) line.className = 'stepper-line completed';
+            } else if (i === stepNumber) {
+                node.className = 'stepper-step active';
+                if (line) line.className = 'stepper-line';
+            } else {
+                node.className = 'stepper-step';
+                if (line) line.className = 'stepper-line';
             }
-        });
-
-
-btnToStep2.addEventListener('click', () => {
-    const currentFile = fileInput.files[0];
-
-    if (!currentFile) {
-        alert('Pilih file Excel terlebih dahulu!');
-        return;
+        }
     }
 
-    // Memastikan format file yang dipilih sesuai.
-    const extension = currentFile.name.split('.').pop().toLowerCase();
+    // Eksekusi Pratinjau (Langkah 2 & 3 -> 4)
+    async function executePreview() {
+        if (!activeFile) {
+            showAlert('Berkas Belum Dipilih', 'Silakan pilih berkas DBF atau Excel terlebih dahulu.', 'error');
+            return;
+        }
 
-    if (!['xlsx', 'xls'].includes(extension)) {
-        alert('File harus berformat .xlsx atau .xls.');
-        return;
-    }
+        const sumber = document.querySelector('input[name="sumber_data_final"]:checked')?.value || 'distribusi';
+        const jenis = document.querySelector('input[name="jenis_data_final"]:checked')?.value || 'Ekspor';
 
-    // Validasi ukuran file pada sisi browser sebelum proses berat
-    const fileSizeMB = currentFile.size / (1024 * 1024);
-    if (currentFile.size > 50 * 1024 * 1024) {
-        alert(`Ukuran file (${fileSizeMB.toFixed(2)} MB) melebihi batas maksimal 50 MB. Silakan kurangi baris data atau unggah berkas yang lebih ringkas.`);
-        return;
-    }
+        // Tampilkan kartu inspeksi
+        document.getElementById('cardStageUpload').style.display = 'none';
+        document.getElementById('cardStageInspecting').style.display = 'block';
+        updateStepperUI(2);
 
-    // Ambil jenis data yang dipilih dari Langkah 1
-    const step1Jenis = document.getElementById('step1_jenis_data')?.value || 'Ekspor';
-    // Sinkronkan ke dropdown Langkah 2
-    const filterJenisSelect = document.getElementById('filter_jenis');
-    if (filterJenisSelect) {
-        filterJenisSelect.value = step1Jenis;
-    }
+        // Simulasi progres checklist
+        setTimeout(() => {
+            document.getElementById('chk-columns').classList.add('active');
+            document.getElementById('inspectionProgressBar').style.width = '50%';
+            updateStepperUI(3);
+        }, 300);
 
-    const reader = new FileReader();
+        setTimeout(() => {
+            document.getElementById('chk-master').classList.add('active');
+            document.getElementById('inspectionProgressBar').style.width = '75%';
+        }, 600);
 
-    reader.onload = function (e) {
-        let workbook;
+        const formData = new FormData();
+        formData.append('excel_file_final', activeFile);
+        formData.append('jenis_data_final', jenis);
+        formData.append('sumber_data_final', sumber);
 
         try {
-            const data = new Uint8Array(e.target.result);
-
-            workbook = XLSX.read(data, {
-                type: 'array'
-            });
-
-            const sheetNames = workbook.SheetNames || [];
-            if (sheetNames.length === 0) {
-                alert('File Excel tidak memiliki lembar kerja (worksheet).');
-                return;
-            }
-
-            // Prioritas nama sheet berdasarkan jenis data yang dipilih
-            const prioritasSheet = step1Jenis === 'Impor'
-                ? ['Impor', 'Import', 'RawDataImpor', 'Raw_Data_Impor', 'DataImpor', 'Data_Impor', 'RawData', 'Sheet1']
-                : ['Ekspor', 'Export', 'RawDataEkspor', 'Raw_Data_Ekspor', 'DataEkspor', 'Data_Ekspor', 'RawData', 'Sheet1'];
-
-            let namaSheetDitemukan = null;
-            let worksheet = null;
-
-            // 1. Pencarian persis dari daftar prioritas
-            for (const candidate of prioritasSheet) {
-                if (workbook.Sheets[candidate]) {
-                    namaSheetDitemukan = candidate;
-                    worksheet = workbook.Sheets[candidate];
-                    break;
-                }
-            }
-
-            // 2. Pencarian case-insensitive atau parsial
-            if (!worksheet) {
-                const targetKeyword = step1Jenis.toLowerCase();
-                const altKeyword = step1Jenis === 'Impor' ? 'import' : 'export';
-
-                for (const sName of sheetNames) {
-                    const cleanName = sName.toLowerCase().trim();
-                    if (cleanName.includes(targetKeyword) || cleanName.includes(altKeyword)) {
-                        namaSheetDitemukan = sName;
-                        worksheet = workbook.Sheets[sName];
-                        break;
-                    }
-                }
-            }
-
-            // 3. Fallback jika hanya ada 1 sheet di workbook
-            if (!worksheet && sheetNames.length === 1) {
-                namaSheetDitemukan = sheetNames[0];
-                worksheet = workbook.Sheets[namaSheetDitemukan];
-            }
-
-            if (!worksheet) {
-                const daftarSheet = sheetNames.join(', ');
-                alert(`Worksheet untuk data ${step1Jenis} tidak ditemukan. Sheet yang tersedia: [${daftarSheet}]. Silakan periksa file Excel yang dipilih.`);
-                return;
-            }
-
-            // Membaca isi sheet sebagai array.
-            const rows = XLSX.utils.sheet_to_json(worksheet, {
-                header: 1,
-                defval: null,
-                blankrows: false
-            });
-
-            if (rows.length < 2) {
-                alert(`Sheet "${namaSheetDitemukan}" belum memiliki baris data.`);
-                return;
-            }
-
-            const headers = rows[0].map(header =>
-                String(header ?? '').trim().toUpperCase()
-            );
-
-            // Kolom yang harus tersedia untuk proses awal
-            // Nilai transaksi bisa berupa 'FOB (US$)', 'CIF (US$)', 'NILAI', 'FOB', 'CIF', 'VALUE'
-            const hasBulan = headers.some(h => ['BULAN', 'BLN', 'MONTH'].includes(h));
-            const hasTahun = headers.some(h => ['TAHUN', 'THN', 'YEAR'].includes(h));
-            const hasHS = headers.some(h => ['KODE HS', 'HS', 'HS_CODE', 'KODEHS'].includes(h));
-            const hasNegara = headers.some(h => ['KODE_NGR', 'NEGARA', 'KODE_NEGARA', 'NGR'].includes(h));
-            const hasNetto = headers.some(h => ['NETTO (KG)', 'BERAT', 'NETTO', 'WEIGHT'].includes(h));
-            const hasNilai = headers.some(h => ['FOB (US$)', 'CIF (US$)', 'NILAI', 'FOB', 'CIF', 'VAL', 'VALUE'].includes(h));
-            const hasProv = headers.some(h => ['PROVORIG', 'PROPINSI', 'PROVINSI', 'PROPASAL', 'PROV'].includes(h));
-
-            const missingList = [];
-            if (!hasBulan) missingList.push('BULAN');
-            if (!hasTahun) missingList.push('TAHUN');
-            if (!hasHS) missingList.push('KODE HS');
-            if (!hasNegara) missingList.push('KODE_NGR');
-            if (!hasNetto) missingList.push('NETTO (KG)');
-            if (!hasNilai) missingList.push(step1Jenis === 'Impor' ? 'CIF/FOB/NILAI' : 'FOB (US$)');
-            if (!hasProv) missingList.push('PROVORIG');
-
-            if (missingList.length > 0) {
-                alert(
-                    `Kolom wajib tidak ditemukan pada sheet "${namaSheetDitemukan}":\n` +
-                    missingList.join(', ')
-                );
-                return;
-            }
-
-            // Menghitung baris yang memiliki setidaknya satu nilai.
-            const dataRows = rows.slice(1).filter(row =>
-                row.some(value =>
-                    value !== null &&
-                    String(value).trim() !== ''
-                )
-            );
-
-            if (dataRows.length === 0) {
-                alert('Tidak ada baris data yang dapat diproses.');
-                return;
-            }
-
-            // Simpan header dan baris data untuk digunakan oleh tombol Apply.
-            previewExcelHeaders = rows[0].map(header =>
-                String(header ?? '').trim()
-            );
-
-            previewExcelData = dataRows;
-            previewExcelSheet = namaSheetDitemukan;
-
-            const totalRows = dataRows.length;
-            const totalCols = rows[0].length;
-            const fileSizeMB = (
-                currentFile.size / (1024 * 1024)
-            ).toFixed(2);
-
-            displayTotalBaris.textContent =
-                totalRows.toLocaleString('id-ID');
-
-            displayNamaFile.textContent = currentFile.name;
-
-            displayInfoFile.textContent =
-                `${totalRows.toLocaleString('id-ID')} baris data - ` +
-                `${totalCols} kolom - ${fileSizeMB} MB - ` +
-                `Sheet: ${namaSheetDitemukan}`;
-
-            step1.classList.remove('active');
-            step2.classList.add('active');
-
-        } catch (error) {
-            console.error('Kesalahan membaca Excel:', error);
-            alert('File Excel gagal dibaca. Periksa kembali file tersebut.');
-        }
-    };
-
-    reader.onerror = function () {
-        alert('File gagal dibaca oleh browser.');
-    };
-
-    reader.readAsArrayBuffer(currentFile);
-});
-
-
-        btnResetFilter.addEventListener('click', () => {
-            document.getElementById('filtering-form').reset();
-            // Reset juga tampilan Select2
-            $('#filter_negara').val(null).trigger('change');
-            $('#filter_hscode').val(null).trigger('change');
-        });
-
-        btnLanjutkan.addEventListener('click', () => {
-            // Ambil data dropdown biasa
-            document.getElementById('jenis_data_final').value = document.getElementById('filter_jenis').value;
-            document.getElementById('tahun_final').value = document.getElementById('filter_tahun').value;
-            document.getElementById('bulan_final').value = document.getElementById('filter_bulan').value;
-            document.getElementById('status_final').value = document.getElementById('filter_status').value;
-            document.getElementById('provinsi_final').value = document.getElementById('filter_provinsi').value;
-            document.getElementById('kabkota_final').value = document.getElementById('filter_kabkota').value;
-
-            // Ambil data dari Select2 (Multiple)
-            let selectedNegara = $('#filter_negara').val();
-            let selectedHsCode = $('#filter_hscode').val();
-
-            // Konversi Array menjadi format string yang dipisahkan koma
-            document.getElementById('negara_final').value = selectedNegara ? selectedNegara.join(',') : '';
-            document.getElementById('hscode_final').value = selectedHsCode ? selectedHsCode.join(',') : '';
-
-            isFilterComplete = true;
-            btnApply.disabled = false;
-            modal.style.display = 'none';
-        });
-
-
-        btnApply.addEventListener('click', () => {
-            if (!isFilterComplete) {
-                alert('Selesaikan filter data terlebih dahulu!');
-                return;
-            }
-
-            // Pastikan preview Excel sudah berhasil dibaca.
-            if (!previewExcelHeaders.length || !previewExcelData.length) {
-                alert('Data Excel belum tersedia. Silakan upload ulang file.');
-                return;
-            }
-
-            // Mencari posisi kolom berdasarkan daftar alternatif nama header
-            const findColumn = (aliases) =>
-                previewExcelHeaders.findIndex(header => {
-                    const clean = String(header).trim().toUpperCase();
-                    return aliases.includes(clean);
-                });
-
-            const colBulan = findColumn(['BULAN', 'BLN', 'MONTH']);
-            const colTahun = findColumn(['TAHUN', 'THN', 'YEAR']);
-            const colNilai = findColumn(['FOB (US$)', 'CIF (US$)', 'NILAI', 'FOB', 'CIF', 'VAL', 'VALUE']);
-
-            console.log('Header Excel:', previewExcelHeaders);
-            console.log('Index kolom:', {
-                bulan: colBulan,
-                tahun: colTahun,
-                nilai: colNilai
-            });
-
-            if (colBulan === -1 || colTahun === -1 || colNilai === -1) {
-                alert('Kolom periode (BULAN, TAHUN) atau nilai transaksi (FOB/CIF/NILAI) tidak ditemukan pada file.');
-                return;
-            }
-
-            const jenisData = document.getElementById('jenis_data_final').value;
-            const tahunDipilih = Number(document.getElementById('tahun_final').value);
-            const bulanDipilih = Number(document.getElementById('bulan_final').value);
-
-            // Mengubah nilai Excel menjadi angka, termasuk format angka dengan koma.
-            const parseNumber = (value) => {
-                if (typeof value === 'number') {
-                    return Number.isFinite(value) ? value : null;
-                }
-
-                if (value === null || value === undefined || String(value).trim() === '') {
-                    return null;
-                }
-
-                let text = String(value).trim().replace(/\s/g, '');
-
-                // Menangani format angka seperti 1,234.56 atau 1234,56.
-                if (text.includes('.') && text.includes(',')) {
-                    if (text.lastIndexOf(',') > text.lastIndexOf('.')) {
-                        text = text.replace(/\./g, '').replace(',', '.');
-                    } else {
-                        text = text.replace(/,/g, '');
-                    }
-                } else if (text.includes(',')) {
-                    text = text.replace(',', '.');
-                }
-
-                const number = Number(text);
-                return Number.isFinite(number) ? number : null;
-            };
-
-
-            // ─────────────────────────────────────────────────────────────────
-            // HELPER: Mengubah nama bulan Bahasa Indonesia menjadi angka 1–12.
-            // Menerima string nama bulan atau angka langsung.
-            // ─────────────────────────────────────────────────────────────────
-            const NAMA_BULAN_KE_ANGKA = {
-                januari: 1, februari: 2, maret: 3, april: 4,
-                mei: 5, juni: 6, juli: 7, agustus: 8,
-                september: 9, oktober: 10, november: 11, desember: 12
-            };
-
-            const parseBulan = (value) => {
-                if (value === null || value === undefined) return null;
-                const teks = String(value).trim().toLowerCase();
-                if (NAMA_BULAN_KE_ANGKA[teks] !== undefined) {
-                    return NAMA_BULAN_KE_ANGKA[teks];
-                }
-                const angka = parseNumber(value);
-                return (angka !== null && Number.isInteger(angka) && angka >= 1 && angka <= 12)
-                    ? angka : null;
-            };
-
-            // ─────────────────────────────────────────────────────────────────
-            // HELPER: Format angka ke format Indonesia (misal: 1.234,56)
-            // ─────────────────────────────────────────────────────────────────
-            const formatNilai = (nilai) =>
-                nilai.toLocaleString('id-ID', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                });
-
-            // ─────────────────────────────────────────────────────────────────
-            // HELPER: Hitung pertumbuhan persen antara dua periode.
-            // Mengembalikan "—" jika nilai pembanding nol atau tidak tersedia.
-            // ─────────────────────────────────────────────────────────────────
-            const hitungPertumbuhan = (nilaiSekarang, nilaiSebelumnya) => {
-                if (nilaiSebelumnya === undefined || nilaiSebelumnya === null || nilaiSebelumnya === 0) {
-                    return '—';
-                }
-                const pertumbuhan =
-                    ((nilaiSekarang - nilaiSebelumnya) / Math.abs(nilaiSebelumnya)) * 100;
-                return `${pertumbuhan > 0 ? '+' : ''}${pertumbuhan.toLocaleString('id-ID', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                })}%`;
-            };
-
-            // ─────────────────────────────────────────────────────────────────
-            // HELPER: Jumlahkan nilai FOB pada rentang bulan [awal, akhir).
-            // Indeks berbasis 0: Jan=0, Des=11.
-            // Mengembalikan null jika tidak ada data untuk tahun tersebut.
-            // ─────────────────────────────────────────────────────────────────
-            const totalRentangBulan = (dataPerTahun, tahun, awal, akhir) => {
-                const data = dataPerTahun[tahun];
-                if (!data) return null;
-                return data.slice(awal, akhir).reduce((total, nilai) => total + nilai, 0);
-            };
-
-
-
-            let jumlahBarisValid = 0;
-            let jumlahBarisTidakValid = 0;
-            const totalPerTahunBulan = {};
-
-            previewExcelData.forEach(row => {
-                let tahun = parseNumber(row[colTahun]);
-                const bulanRaw = row[colBulan];
-                const nilai = parseNumber(row[colNilai]);
-
-                // Menyesuaikan kode tahun pendek 20–26 menjadi 2020–2026.
-                if (tahun !== null && tahun >= 20 && tahun <= 26) {
-                    tahun += 2000;
-                }
-
-                // Gunakan parseBulan yang sudah menangani nama bulan & angka.
-                const bulan = parseBulan(bulanRaw);
-
-                // Lewati baris yang periodenya atau nilainya tidak valid.
-                if (
-                    tahun === null ||
-                    bulan === null ||
-                    nilai === null ||
-                    !Number.isInteger(tahun) ||
-                    !Number.isInteger(bulan) ||
-                    bulan < 1 || bulan > 12
-                ) {
-                    jumlahBarisTidakValid++;
-                    return;
-                }
-
-                jumlahBarisValid++;
-
-                // Inisialisasi array 12 bulan (semua nol) jika tahun belum ada.
-                if (!totalPerTahunBulan[tahun]) {
-                    totalPerTahunBulan[tahun] = Array(12).fill(0);
-                }
-
-                // Akumulasikan nilai FOB ke indeks bulan yang sesuai (0–11).
-                totalPerTahunBulan[tahun][bulan - 1] += nilai;
-            });
-
-            // Log untuk transparansi — lihat di Console browser (F12).
-            console.info('Baris valid:', jumlahBarisValid);
-            console.info('Baris tidak valid:', jumlahBarisTidakValid);
-            console.info('Distribusi data per tahun:', Object.keys(totalPerTahunBulan));
-
-            // Sembunyikan overlay dan tampilkan area pratinjau.
-            previewOverlay.style.display = 'none';
-
-            // ─────────────────────────────────────────────────────────────────
-            // STATISTIK PERTUMBUHAN
-            // Semua kalkulasi menggunakan totalPerTahunBulan sebagai sumber tunggal.
-            // ─────────────────────────────────────────────────────────────────
-
-            // Nilai FOB bulan yang dipilih pada tahun yang dipilih.
-            const totalBulanIni =
-                totalPerTahunBulan[tahunDipilih]?.[bulanDipilih - 1] ?? 0;
-
-            // M-to-M: nilai bulan ini vs bulan sebelumnya.
-            // Jika bulan ini Januari, bandingkan dengan Desember tahun lalu.
-            const bulanSebelumnya = bulanDipilih === 1 ? 12 : bulanDipilih - 1;
-            const tahunBulanSebelumnya = bulanDipilih === 1 ? tahunDipilih - 1 : tahunDipilih;
-            const totalBulanSebelumnya =
-                totalPerTahunBulan[tahunBulanSebelumnya]?.[bulanSebelumnya - 1];
-            document.getElementById('val-mtom').textContent =
-                hitungPertumbuhan(totalBulanIni, totalBulanSebelumnya);
-
-            // Q-to-Q: total kuartal berjalan vs kuartal sebelumnya.
-            // Kuartal 1: Jan–Mar (indeks 0–2), Q2: Apr–Jun, Q3: Jul–Sep, Q4: Okt–Des.
-            const kuartalIni = Math.ceil(bulanDipilih / 3);
-            const bulanAwalKuartal = (kuartalIni - 1) * 3;   // indeks mulai (0-based)
-            const bulanAkhirKuartal = kuartalIni * 3;         // indeks akhir eksklusif
-            const totalKuartalIni =
-                totalRentangBulan(totalPerTahunBulan, tahunDipilih, bulanAwalKuartal, bulanAkhirKuartal);
-
-            const kuartalSebelumnya = kuartalIni === 1 ? 4 : kuartalIni - 1;
-            const tahunKuartalSebelumnya = kuartalIni === 1 ? tahunDipilih - 1 : tahunDipilih;
-            const totalKuartalSebelumnya = totalRentangBulan(
-                totalPerTahunBulan,
-                tahunKuartalSebelumnya,
-                (kuartalSebelumnya - 1) * 3,
-                kuartalSebelumnya * 3
-            );
-            document.getElementById('val-qtoq').textContent =
-                hitungPertumbuhan(totalKuartalIni, totalKuartalSebelumnya);
-
-            // Y-on-Y: nilai bulan ini vs bulan yang sama tahun lalu.
-            const totalBulanTahunLalu =
-                totalPerTahunBulan[tahunDipilih - 1]?.[bulanDipilih - 1];
-            document.getElementById('val-yony').textContent =
-                hitungPertumbuhan(totalBulanIni, totalBulanTahunLalu);
-
-            // C-to-C: kumulatif Jan s.d. bulan dipilih, dibanding periode sama tahun lalu.
-            // Indeks 0 s.d. bulanDipilih (eksklusif) = Jan hingga bulan terpilih.
-            const totalKumulatifTahunIni =
-                totalRentangBulan(totalPerTahunBulan, tahunDipilih, 0, bulanDipilih);
-            const totalKumulatifTahunLalu =
-                totalRentangBulan(totalPerTahunBulan, tahunDipilih - 1, 0, bulanDipilih);
-            document.getElementById('val-ctoc').textContent =
-                hitungPertumbuhan(totalKumulatifTahunIni, totalKumulatifTahunLalu);
-
-            // ─────────────────────────────────────────────────────────────────
-            // GRAFIK BULANAN
-            // Ambil array 12 elemen untuk tahun dipilih; bulan tanpa data = 0.
-            // Konversi ke juta US$ agar skala grafik lebih terbaca.
-            // ─────────────────────────────────────────────────────────────────
-            const nilaiPerBulan =
-                totalPerTahunBulan[tahunDipilih] ?? Array(12).fill(0);
-            const nilaiJutaUSD = nilaiPerBulan.map(v => v / 1_000_000);
-
-
-
-            const ctx = document.getElementById('previewChart').getContext('2d');
-
-            if (previewChartInstance) {
-                previewChartInstance.destroy();
-            }
-
-            const bgColor = jenisData === 'Ekspor'
-                ? 'rgba(37, 99, 235, 0.7)'
-                : 'rgba(16, 185, 129, 0.7)';
-
-            const bdColor = jenisData === 'Ekspor'
-                ? 'rgba(37, 99, 235, 1)'
-                : 'rgba(16, 185, 129, 1)';
-
-            const namaBulan = [
-                'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-                'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
-            ];
-
-            previewChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: namaBulan,
-                    datasets: [{
-                        label: `Total nilai ${jenisData} ${tahunDipilih} (juta US$)`,
-                        data: nilaiJutaUSD,
-                        backgroundColor: bgColor,
-                        borderColor: bdColor,
-                        borderWidth: 1,
-                        borderRadius: 6
-                    }]
+            const response = await fetch("{{ route('upload.preview') }}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+                    'Accept': 'application/json'
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'top'
-                        },
-                        title: {
-                            display: true,
-                            text: `Tren Nilai ${jenisData} Provinsi Riau Tahun ${tahunDipilih}`,
-                            font: {
-                                size: 16
-                            },
-                            padding: {
-                                bottom: 20
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: context =>
-                                    `${context.dataset.label}: ${formatNilai(context.raw)}`
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Juta US$'
-                            }
-                        }
-                    }
-                }
+                body: formData
             });
 
-            // Aktifkan Simpan hanya setelah Apply berhasil dijalankan.
-            btnSimpan.disabled = false;
+            const result = await response.json();
 
-            // Log total baris valid dan nilai bulan yang dipilih untuk debugging.
-            console.info('Total baris valid seluruh data:', jumlahBarisValid);
-            console.info('Total baris tidak valid:', jumlahBarisTidakValid);
-            console.info(
-                `Total FOB bulan ${bulanDipilih}/${tahunDipilih} (US$):`,
-                totalPerTahunBulan[tahunDipilih]?.[bulanDipilih - 1] ?? 0
-            );
-
-        });
-
-        // ─────────────────────────────────────────────────────────────────
-        // FUNGSI NOTIFIKASI DINAMIS
-        // ─────────────────────────────────────────────────────────────────
-        const notifBox = document.getElementById('dynamic-notification');
-        const notifText = document.getElementById('dynamic-notification-text');
-        const notifAction = document.getElementById('dynamic-notification-action');
-
-        function showNotification(type, message, actionHtml = '') {
-            if (!notifBox) return;
-            notifBox.style.display = 'flex';
-            if (type === 'success') {
-                notifBox.style.backgroundColor = '#d1fae5';
-                notifBox.style.border = '1px solid #6ee7b7';
-                notifBox.style.color = '#065f46';
-                notifText.innerHTML = `
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                    </svg>
-                    <span>${message}</span>
-                `;
-            } else {
-                notifBox.style.backgroundColor = '#fee2e2';
-                notifBox.style.border = '1px solid #fca5a5';
-                notifBox.style.color = '#991b1b';
-                notifText.innerHTML = `
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="12" y1="8" x2="12" y2="12"></line>
-                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                    </svg>
-                    <span>${message}</span>
-                `;
+            if (!result.success) {
+                throw new Error(result.message || 'Gagal membaca dan memvalidasi berkas.');
             }
-            notifAction.innerHTML = actionHtml;
-            notifBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+            // Simpan cache hasil pratinjau
+            previewDataCache = result;
+
+            document.getElementById('chk-aggregation').classList.add('active');
+            document.getElementById('inspectionProgressBar').style.width = '100%';
+
+            setTimeout(() => {
+                renderPreviewPanel(result);
+            }, 400);
+
+        } catch (err) {
+            document.getElementById('cardStageInspecting').style.display = 'none';
+            document.getElementById('cardStageUpload').style.display = 'block';
+            updateStepperUI(1);
+            showAlert('Validasi Berkas Gagal', err.message, 'error');
+        }
+    }
+
+    function renderPreviewPanel(result) {
+        document.getElementById('cardStageInspecting').style.display = 'none';
+        document.getElementById('cardStagePreview').style.display = 'block';
+        updateStepperUI(4);
+
+        const d = result.data || result;
+        const meta = result.data || {};
+        const kpi = result.kpi || result.data || {};
+
+        // Tags
+        document.getElementById('badgePreviewSumber').textContent = (result.sumber_data || meta.sumber_data || 'Distribusi').toUpperCase();
+        document.getElementById('badgePreviewJenis').textContent = (result.jenis_data || meta.jenis_transaksi || 'Ekspor').toUpperCase();
+        document.getElementById('badgePreviewPeriode').textContent = `BULAN ${result.bulan || meta.bulan || '--'} / ${result.tahun || meta.tahun || '--'}`;
+
+        // KPI
+        const totalBaris = meta.total_baris || result.jumlah_baris || 0;
+        const barisValid = meta.baris_valid || totalBaris;
+        const barisInvalid = meta.baris_invalid || 0;
+
+        document.getElementById('kpiTotalBaris').textContent = totalBaris.toLocaleString('id-ID');
+        document.getElementById('kpiBarisValid').textContent = `${barisValid.toLocaleString('id-ID')} Valid`;
+        document.getElementById('kpiBarisInvalid').textContent = `${barisInvalid.toLocaleString('id-ID')} Gagal`;
+
+        const totalNilaiJuta = (meta.total_nilai_juta_usd !== undefined) ? meta.total_nilai_juta_usd : (result.total_nilai || 0);
+        document.getElementById('kpiTotalNilai').textContent = `US$ ${Number(totalNilaiJuta).toLocaleString('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Juta`;
+        document.getElementById('kpiTotalNilaiExact').textContent = meta.total_nilai_usd ? `Exact: US$ ${Number(meta.total_nilai_usd).toLocaleString('en-US', {minimumFractionDigits: 6})}` : '';
+
+        const totalBeratRibu = (meta.total_berat_ribu_ton !== undefined) ? meta.total_berat_ribu_ton : (result.total_berat || 0);
+        document.getElementById('kpiTotalBerat').textContent = `${Number(totalBeratRibu).toLocaleString('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Ribu Ton`;
+        document.getElementById('kpiTotalBeratExact').textContent = meta.total_berat_kg ? `Exact: ${Number(meta.total_berat_kg).toLocaleString('en-US', {minimumFractionDigits: 6})} Kg` : '';
+
+        const nonMigasJuta = meta.non_migas_nilai_usd ? (meta.non_migas_nilai_usd / 1000000) : 0;
+        const migasJuta = meta.migas_nilai_usd ? (meta.migas_nilai_usd / 1000000) : 0;
+        document.getElementById('kpiNonMigas').textContent = `Non-Migas: US$ ${Number(nonMigasJuta).toLocaleString('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Juta`;
+        document.getElementById('kpiMigas').textContent = `Migas: US$ ${Number(migasJuta).toLocaleString('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Juta`;
+
+        // Banner Duplikasi
+        if (meta.duplikasi_batch && meta.duplikasi_batch.exists) {
+            document.getElementById('bannerDuplikasi').style.display = 'flex';
+            document.getElementById('textDuplikasi').textContent = `Periode data ini sudah pernah tercatat pada sistem (Batch #${meta.duplikasi_batch.batch_id}). Data yang sudah ada tidak boleh ditimpa tanpa verifikasi.`;
+        } else {
+            document.getElementById('bannerDuplikasi').style.display = 'none';
         }
 
-        function hideNotification() {
-            if (notifBox) notifBox.style.display = 'none';
+        // Banner Unmapped
+        if (meta.unmapped && meta.unmapped.count > 0) {
+            document.getElementById('bannerUnmapped').style.display = 'flex';
+            document.getElementById('textUnmapped').textContent = `Terdapat ${meta.unmapped.count} kode HS yang belum terdaftar di Master HS resmi BPS. Kode dipertahankan dengan flag status unmapped sesuai aturan metodologi BPS.`;
+        } else {
+            document.getElementById('bannerUnmapped').style.display = 'none';
         }
 
-        // ─────────────────────────────────────────────────────────────────
-        // HANDLER SIMPAN DATA (AJAX + INDIKATOR LOADING + GUARD DOUBLE CLICK)
-        // ─────────────────────────────────────────────────────────────────
-        const formSimpan = document.getElementById('form-simpan');
+        // Render Sample Table
+        const tbody = document.getElementById('tbodyPreviewSample');
+        tbody.innerHTML = '';
 
-        formSimpan.addEventListener('submit', async function(e) {
-            e.preventDefault();
+        const sampleRows = meta.preview_sample || result.sample_rows || [];
+        if (sampleRows.length > 0) {
+            sampleRows.slice(0, 10).forEach((row, idx) => {
+                const tr = document.createElement('tr');
+                const hsCode = row.hs_code || row.hs || row.kd_hs || '-';
+                const uraian = row.uraian || row.hs_desc || row.commodity || 'Komoditas Perdagangan';
+                const negara = row.negara || row.nama_negara || row.country || '-';
+                const pelabuhan = row.pelabuhan || row.nama_pelabuhan || row.port || '-';
+                const nilaiUsd = Number(row.fob || row.cif || row.nilai || row.total_nilai || 0).toLocaleString('id-ID', {minimumFractionDigits: 2});
+                const beratKg = Number(row.netto || row.berat || row.total_berat || 0).toLocaleString('id-ID', {minimumFractionDigits: 2});
+                const isMapped = row.is_mapped !== false;
 
-            // 1. Validasi awal: tombol Apply harus sudah dijalankan dan data tersedia
-            if (!isFilterComplete || !previewExcelData.length) {
-                showNotification('error', 'Silakan pilih file dan klik tombol "Apply" terlebih dahulu sebelum menyimpan data.');
-                return;
+                tr.innerHTML = `
+                    <td style="text-align: center; color: #94a3b8;">${idx + 1}</td>
+                    <td><strong>${hsCode}</strong></td>
+                    <td style="max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${uraian}">${uraian}</td>
+                    <td>${negara}</td>
+                    <td>${pelabuhan}</td>
+                    <td style="text-align: right; font-weight: 600;">$${nilaiUsd}</td>
+                    <td style="text-align: right;">${beratKg}</td>
+                    <td style="text-align: center;">
+                        <span class="badge-tag-blue" style="font-size: 0.7rem; padding: 2px 6px;">${isMapped ? 'TERPETAKAN' : 'UNMAPPED'}</span>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 1.5rem;">Pratinjau sampel baris tidak tersedia.</td></tr>';
+        }
+    }
+
+    function backToUploadStage() {
+        document.getElementById('cardStagePreview').style.display = 'none';
+        document.getElementById('cardStageUpload').style.display = 'block';
+        updateStepperUI(1);
+    }
+
+    function showConfirmSaveModal() {
+        if (!previewDataCache) return;
+        const meta = previewDataCache.data || previewDataCache;
+
+        document.getElementById('modalConfirmFileName').textContent = activeFile ? activeFile.name : '-';
+        document.getElementById('modalConfirmScope').textContent = `${(previewDataCache.sumber_data || meta.sumber_data || 'Distribusi').toUpperCase()} \u2022 ${(previewDataCache.jenis_data || meta.jenis_transaksi || 'Ekspor').toUpperCase()}`;
+        document.getElementById('modalConfirmStatus').textContent = document.querySelector('input[name="status_final"]:checked')?.value || 'PRIVATE';
+        document.getElementById('modalConfirmRows').textContent = `${(meta.total_baris || previewDataCache.jumlah_baris || 0).toLocaleString('id-ID')} Baris Transaksi`;
+
+        document.getElementById('modalConfirmSave').style.display = 'flex';
+    }
+
+    function closeConfirmSaveModal() {
+        document.getElementById('modalConfirmSave').style.display = 'none';
+    }
+
+    // Eksekusi Penyimpanan Final (Langkah 5 & 6)
+    async function executeProcessSave() {
+        closeConfirmSaveModal();
+
+        document.getElementById('cardStagePreview').style.display = 'none';
+        document.getElementById('cardStageProcessing').style.display = 'block';
+        updateStepperUI(5);
+
+        const sumber = document.querySelector('input[name="sumber_data_final"]:checked')?.value || 'distribusi';
+        const jenis = document.querySelector('input[name="jenis_data_final"]:checked')?.value || 'Ekspor';
+        const status = document.querySelector('input[name="status_final"]:checked')?.value || 'PRIVATE';
+
+        const formData = new FormData();
+        formData.append('excel_file_final', activeFile);
+        formData.append('jenis_data_final', jenis);
+        formData.append('sumber_data_final', sumber);
+        formData.append('status_final', status);
+
+        try {
+            const response = await fetch("{{ route('upload.process') }}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+                    'Accept': 'application/json'
+                },
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (!result.success) {
+                throw new Error(result.message || 'Gagal menyimpan dan memproses berkas ke basis data.');
             }
 
-            // 2. Ambil file asli dari input (baik dari fileInput modal maupun hidden input)
-            const file = (fileInput && fileInput.files && fileInput.files[0])
-                      || (hiddenFileInputFinal && hiddenFileInputFinal.files && hiddenFileInputFinal.files[0]);
+            // Tampilkan hasil sukses
+            document.getElementById('cardStageProcessing').style.display = 'none';
+            document.getElementById('cardStageSuccess').style.display = 'block';
+            updateStepperUI(6);
 
-            if (!file) {
-                showNotification('error', 'File Excel belum dipilih atau tidak terbaca. Silakan pilih kembali file Excel.');
-                return;
-            }
+            const resData = result.data || {};
+            document.getElementById('resBatchId').textContent = `Batch #${resData.batch_id || '--'}`;
+            document.getElementById('resStatus').textContent = resData.status || status;
+            document.getElementById('resTotalRows').textContent = `${(resData.total_transactions || 0).toLocaleString('id-ID')} Transaksi`;
+            document.getElementById('resTotalNilai').textContent = `US$ ${Number(resData.total_nilai_juta_usd || 0).toLocaleString('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Juta`;
+            document.getElementById('successSummaryText').textContent = result.message || 'Seluruh transaksi berhasil diverifikasi dan disimpan.';
 
-            // 3. Siapkan FormData langsung dari form + file asli
-            const chosenStatus = document.getElementById('filter_status')?.value
-                              || document.getElementById('status_final')?.value
-                              || 'Pending';
-            document.getElementById('status_final').value = chosenStatus;
+        } catch (err) {
+            document.getElementById('cardStageProcessing').style.display = 'none';
+            document.getElementById('cardStagePreview').style.display = 'block';
+            updateStepperUI(4);
+            showAlert('Penyimpanan Data Gagal', err.message, 'error');
+        }
+    }
 
-            const formData = new FormData(formSimpan);
-            formData.set('excel_file_final', file);
-            formData.set('status_final', chosenStatus);
-
-            // 4. Set state tombol Simpan ke kondisi LOADING
-            const originalBtnHtml = btnSimpan.innerHTML;
-            btnSimpan.disabled = true;
-            btnSimpan.innerHTML = `
-                <span style="display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
-                        <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
-                        <path d="M12 2a10 10 0 0 1 10 10" stroke-opacity="0.75"></path>
-                    </svg>
-                    Menyimpan...
-                </span>
-            `;
-            hideNotification();
-
-            try {
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                               || document.querySelector('input[name="_token"]')?.value
-                               || '';
-
-                const response = await fetch(formSimpan.action, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken
-                    }
-                });
-
-                // Cek status HTTP khusus terlebih dahulu
-                if (response.status === 419) {
-                    showNotification('error', 'Sesi login atau token keamanan (CSRF) Anda telah kedaluwarsa. Silakan refresh halaman browser (F5) lalu ulangi proses upload.');
-                    btnSimpan.innerHTML = originalBtnHtml;
-                    btnSimpan.disabled = false;
-                    return;
-                }
-
-                // Coba parse respon sebagai JSON atau teks
-                const rawText = await response.text();
-                let result = null;
-                try {
-                    result = JSON.parse(rawText);
-                } catch (parseErr) {
-                    console.warn('Respon server bukan JSON:', response.status, rawText);
-                }
-
-                if (response.status === 413) {
-                    const serverMsg = result && result.message ? result.message : 'Ukuran payload file melampaui batas server. Pastikan ukuran file tidak melebihi 50 MB.';
-                    showNotification('error', serverMsg);
-                    btnSimpan.innerHTML = originalBtnHtml;
-                    btnSimpan.disabled = false;
-                    return;
-                }
-
-                if (response.ok && result && result.success) {
-                    // Sukses menyimpan ke database
-                    btnSimpan.innerHTML = '✓ Tersimpan';
-                    btnSimpan.style.backgroundColor = '#10b981';
-
-                    const actionBtn = `
-                        <a href="${result.redirect_url || '{{ route('manajemen-data') }}'}"
-                           style="background: #059669; color: white; padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 0.4rem;">
-                            Buka Manajemen Data &rarr;
-                        </a>
-                    `;
-                    showNotification('success', result.message || 'Data berhasil disimpan ke database!', actionBtn);
-
-                    // Kembalikan tombol ke aktif setelah beberapa detik jika pengguna ingin aksi lain
-                    setTimeout(() => {
-                        btnSimpan.innerHTML = originalBtnHtml;
-                        btnSimpan.style.backgroundColor = '';
-                        btnSimpan.disabled = false;
-                    }, 4000);
-
-                } else {
-                    // Respon error dari server / validasi Laravel
-                    let errMsg = 'Gagal menyimpan data ke database.';
-                    if (result && result.message) {
-                        errMsg = result.message;
-                    } else if (result && result.errors) {
-                        errMsg = Object.values(result.errors).flat().join('<br>');
-                    } else if (response.status === 500) {
-                        errMsg = 'Terjadi kesalahan pada server (Error 500). Periksa log aplikasi atau koneksi database.';
-                    } else if (response.status === 404) {
-                        errMsg = 'Rute penyimpanan tidak ditemukan (Error 404).';
-                    }
-
-                    showNotification('error', errMsg);
-                    btnSimpan.innerHTML = originalBtnHtml;
-                    btnSimpan.disabled = false;
-                }
-
-            } catch (networkError) {
-                console.error('Error saat menyimpan ke database:', networkError);
-                showNotification('error', 'Terjadi kesalahan koneksi atau jaringan saat menghubungi server: ' + networkError.message);
-                btnSimpan.innerHTML = originalBtnHtml;
-                btnSimpan.disabled = false;
-            }
-        });
-
-        btnResetDashboard.addEventListener('click', () => {
-            hideNotification();
-            previewOverlay.style.display = 'flex';
-            document.getElementById('filtering-form').reset();
-            document.getElementById('form-simpan').reset();
-
-            $('#filter_negara').val(null).trigger('change');
-            $('#filter_hscode').val(null).trigger('change');
-
-            fileInput.value = '';
-            hiddenFileInputFinal.value = '';
-            selectedFileName.style.display = 'none';
-            btnApply.disabled = true;
-            btnSimpan.disabled = true;
-            isFilterComplete = false;
-            previewExcelHeaders = [];
-            previewExcelData = [];
-            previewExcelSheet = '';
-            step2.classList.remove('active');
-            step1.classList.add('active');
-
-            // Hapus grafik saat di-reset
-            if (previewChartInstance) {
-                previewChartInstance.destroy();
-                previewChartInstance = null;
-            }
-        });
-    });
+    function resetToNewUpload() {
+        cancelSelectedFile();
+        previewDataCache = null;
+        document.getElementById('cardStageSuccess').style.display = 'none';
+        document.getElementById('cardStageUpload').style.display = 'block';
+        updateStepperUI(1);
+    }
 </script>
+@endpush
 @endsection
