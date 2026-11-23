@@ -9,18 +9,6 @@ use Tests\TestCase;
 
 class SidatexComprehensiveTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // Hubungkan ke database sidatex di MySQL Laragon
-        Config::set('database.default', 'mysql');
-        Config::set('database.connections.mysql.database', 'sidatex');
-        Config::set('database.connections.mysql.host', '127.0.0.1');
-        Config::set('database.connections.mysql.username', 'root');
-        Config::set('database.connections.mysql.password', '');
-        DB::purge('mysql');
-    }
 
     /**
      * Test akses halaman publik dan proteksi auth.
@@ -204,6 +192,9 @@ class SidatexComprehensiveTest extends TestCase
      */
     public function test_upload_file_size_limits_validation()
     {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        \Illuminate\Support\Facades\Storage::fake('public');
+
         $admin = User::where('role_id', 1)->first();
         if (!$admin) {
             $this->markTestSkipped('Super Admin tidak ditemukan.');
